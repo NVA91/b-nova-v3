@@ -1,0 +1,17 @@
+---
+# 📁 Samba Role - Handlers
+
+- name: restart samba
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+  loop:
+    - smbd
+    - nmbd
+  become: yes
+
+- name: reload samba
+  ansible.builtin.systemd:
+    name: smbd
+    state: reloaded
+  become: yes

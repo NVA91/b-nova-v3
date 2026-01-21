@@ -1,0 +1,34 @@
+---
+# 📁 Samba Role - Default Variables
+
+# Samba global settings
+samba_workgroup: "WORKGROUP"
+samba_server_string: "NOVA v3 Samba Server"
+samba_log_level: "1"
+samba_bind_interfaces_only: "no"
+
+# Example shares (override in playbook)
+samba_shares:
+  - name: "public"
+    path: "/srv/samba/public"
+    comment: "Public Share"
+    browseable: "yes"
+    writable: "yes"
+    guest_ok: "yes"
+    create_mask: "0664"
+    directory_mask: "0775"
+  
+  - name: "private"
+    path: "/srv/samba/private"
+    comment: "Private Share"
+    browseable: "yes"
+    writable: "yes"
+    guest_ok: "no"
+    valid_users: "@users"
+    create_mask: "0660"
+    directory_mask: "0770"
+
+# Example users (override in playbook)
+samba_users:
+  - username: "nova"
+    password: "changeme"

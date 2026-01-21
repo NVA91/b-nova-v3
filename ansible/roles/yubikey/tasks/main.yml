@@ -1,0 +1,94 @@
+---
+# 🔐 YubiKey Role - Main Tasks
+# Konfiguriert YubiKey 5C Nano für SSH, PAM und 2FA
+
+- name: Install YubiKey packages
+  ansible.builtin.apt:
+    name:
+      - libpam-yubico
+      - yubikey-manager
+      - yubikey-personalization
+      - libpam-u2f
+      - pcscd
+      - scdaemon
+    state: present
+    update_cache: yes
+  become: yes
+
+- name: Start and enable pcscd service
+  ansible.builtin.systemd:
+    name: pcscd
+    state: started
+    enabled: yes
+  become: yes
+
+- name: Create YubiKey configuration directory
+  ansible.builtin.file:
+    path: "{{ yubikey_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: yes
+
+- name: Configure PAM for YubiKey 2FA
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    line: "auth required pam_yubico.so id={{ yubikey_client_id }} key={{ yubikey_secret_key }} mode={{ yubikey_mode | default('client') }}"
+    insertafter: "^auth.*pam_unix.so"
+    backup: yes
+  when: yubikey_enable_pam | default(false)
+  become: yes
+  notify: restart ssh
+
+- name: Configure SSH for YubiKey authentication
+  ansible.builtin.blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+      # YubiKey Configuration
+      ChallengeResponseAuthentication yes
+      AuthenticationMethods publickey,keyboard-interactive:pam
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - YubiKey"
+    backup: yes
+  when: yubikey_enable_ssh | default(false)
+  become: yes
+  notify: restart ssh
+
+- name: Create U2F mappings directory
+  ansible.builtin.file:
+    path: /etc/u2f_mappings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: yubikey_enable_u2f | default(false)
+  become: yes
+
+- name: Configure U2F for users
+  ansible.builtin.template:
+    src: u2f_mappings.j2
+    dest: "/etc/u2f_mappings/{{ item.username }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop: "{{ yubikey_users }}"
+  when: yubikey_enable_u2f | default(false) and yubikey_users is defined
+  become: yes
+
+- name: Configure sudo for YubiKey 2FA
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sudo
+    line: "auth required pam_yubico.so id={{ yubikey_client_id }} key={{ yubikey_secret_key }} mode={{ yubikey_mode | default('client') }}"
+    insertafter: "^@include common-auth"
+    backup: yes
+  when: yubikey_enable_sudo | default(false)
+  become: yes
+
+- name: Display YubiKey status
+  ansible.builtin.debug:
+    msg: |
+      YubiKey configuration completed:
+      - PAM 2FA: {{ yubikey_enable_pam | default(false) }}
+      - SSH Authentication: {{ yubikey_enable_ssh | default(false) }}
+      - U2F: {{ yubikey_enable_u2f | default(false) }}
+      - Sudo 2FA: {{ yubikey_enable_sudo | default(false) }}

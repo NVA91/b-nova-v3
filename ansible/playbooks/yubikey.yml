@@ -1,0 +1,45 @@
+---
+# 🔐 YubiKey Playbook
+# Konfiguriert YubiKey 5C Nano für 2FA
+
+- name: Configure YubiKey 2FA
+  hosts: yubikey_hosts
+  become: yes
+  
+  vars:
+    # YubiKey API credentials (CHANGE THESE!)
+    yubikey_client_id: "{{ vault_yubikey_client_id | default('12345') }}"
+    yubikey_secret_key: "{{ vault_yubikey_secret_key | default('changeme') }}"
+    
+    # Enable features
+    yubikey_enable_pam: true
+    yubikey_enable_ssh: true
+    yubikey_enable_u2f: true
+    yubikey_enable_sudo: true
+    
+    # Users with YubiKey
+    yubikey_users:
+      - username: "admin"
+        yubikey_id: "cccccccccccc"  # Replace with your YubiKey ID
+      - username: "nova"
+        yubikey_id: "cccccccccccc"  # Replace with your YubiKey ID
+  
+  roles:
+    - yubikey
+  
+  post_tasks:
+    - name: Display YubiKey setup instructions
+      ansible.builtin.debug:
+        msg: |
+          YubiKey 2FA configured successfully!
+          
+          Next steps:
+          1. Get your YubiKey API credentials from https://upgrade.yubico.com/getapikey/
+          2. Update yubikey_client_id and yubikey_secret_key in this playbook
+          3. Test YubiKey authentication before closing your current session
+          4. Keep a backup SSH session open until you verify YubiKey works
+          
+          To get your YubiKey ID:
+          1. Open a text editor
+          2. Press your YubiKey button
+          3. Copy the first 12 characters (e.g., cccccccccccc)

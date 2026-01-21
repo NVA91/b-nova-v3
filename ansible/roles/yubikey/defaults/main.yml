@@ -1,0 +1,23 @@
+---
+# 🔐 YubiKey Role - Default Variables
+
+# YubiKey configuration directory
+yubikey_config_dir: "/etc/yubikey"
+
+# YubiKey Cloud API credentials (get from https://upgrade.yubico.com/getapikey/)
+yubikey_client_id: ""
+yubikey_secret_key: ""
+
+# YubiKey mode: 'client' (cloud) or 'challenge-response' (offline)
+yubikey_mode: "client"
+
+# Enable features
+yubikey_enable_pam: false
+yubikey_enable_ssh: false
+yubikey_enable_u2f: false
+yubikey_enable_sudo: false
+
+# Users with YubiKey access
+yubikey_users: []
+#  - username: "admin"
+#    yubikey_id: "cccccccccccc"  # First 12 characters of YubiKey OTP

@@ -1,0 +1,14 @@
+---
+# 🔐 YubiKey Role - Handlers
+
+- name: restart ssh
+  ansible.builtin.systemd:
+    name: ssh
+    state: restarted
+  become: yes
+
+- name: restart pcscd
+  ansible.builtin.systemd:
+    name: pcscd
+    state: restarted
+  become: yes

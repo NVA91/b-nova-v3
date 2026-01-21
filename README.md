@@ -105,4 +105,4 @@ Beiträge sind willkommen! Bitte beachte:
 
 ## 📜 Lizenz
 
-Dieses Projekt ist unter der MIT-Lizenz lizenziert.
+Dieses Projekt ist unter der MIT-Lizenz lizenziert. Nova

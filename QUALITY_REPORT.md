@@ -179,5 +179,5 @@ Das Projekt ist sauber strukturiert, gut dokumentiert und vollständig funktions
 
 ---
 
-**Geprüft von:** Manus AI  
+**Geprüft von:** nova  
 **Datum:** 2026-01-17

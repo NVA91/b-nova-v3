@@ -1,0 +1,223 @@
+---
+# system_setup Role - Proxmox VE Grundkonfiguration
+
+# ============================================================================
+# SECTION 1: Proxmox Repository Management
+# ============================================================================
+
+- name: "Proxmox Repos: Enterprise Repository deaktivieren (keine Subscription)"
+  ansible.builtin.lineinfile:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+    state: absent
+  when: ansible_distribution == 'Debian'
+  tags:
+    - system_setup
+    - repos
+    - proxmox
+
+- name: "Proxmox Repos: No-Subscription Repository hinzufügen"
+  ansible.builtin.apt_repository:
+    repo: "deb http://download.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-no-subscription"
+    state: present
+    filename: pve-no-subscription
+  when: ansible_distribution == 'Debian'
+  tags:
+    - system_setup
+    - repos
+    - proxmox
+
+- name: "Proxmox Repos: Proxmox Release Key hinzufügen"
+  ansible.builtin.apt_key:
+    url: "http://download.proxmox.com/debian/proxmox-release-{{ ansible_distribution_release }}.gpg"
+    state: present
+  when: ansible_distribution == 'Debian'
+  tags:
+    - system_setup
+    - repos
+    - proxmox
+
+# ============================================================================
+# SECTION 2: Paket-Updates und Installation
+# ============================================================================
+
+- name: "System: Paket-Manager aktualisieren"
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - packages
+
+- name: "System: Alle Pakete aktualisieren (inkl. PVE Kernel)"
+  ansible.builtin.apt:
+    upgrade: dist
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - packages
+    - proxmox
+
+- name: "System: Erforderliche Pakete installieren"
+  ansible.builtin.apt:
+    name: "{{ system_setup_packages }}"
+    state: present
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - packages
+
+- name: "Proxmox: ifupdown2 installieren (für Netzwerk-Management)"
+  ansible.builtin.apt:
+    name: ifupdown2
+    state: present
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - packages
+    - proxmox
+    - network
+
+# ============================================================================
+# SECTION 3: Kernel und Reboot Management
+# ============================================================================
+
+- name: "Proxmox: Prüfe ob PVE Kernel lädt"
+  ansible.builtin.command:
+    cmd: "uname -r"
+  register: kernel_check
+  changed_when: false
+  tags:
+    - system_setup
+    - kernel
+    - proxmox
+
+- name: "Proxmox: Warnung wenn Standard-Kernel lädt"
+  ansible.builtin.debug:
+    msg:
+      - "WARNUNG: Standard-Debian-Kernel wird verwendet ({{ kernel_check.stdout }})"
+      - "Proxmox sollte mit dem PVE-Kernel booten"
+      - "Ein Reboot ist empfohlen"
+  when: "'pve' not in kernel_check.stdout"
+  tags:
+    - system_setup
+    - kernel
+    - proxmox
+
+- name: "Proxmox: Entferne Standard-Debian-Kernel (optional)"
+  ansible.builtin.apt:
+    name: linux-image-amd64
+    state: absent
+  when: 
+    - ansible_os_family == 'Debian'
+    - remove_debian_kernel | default(false) | bool
+  tags:
+    - system_setup
+    - kernel
+    - proxmox
+
+# ============================================================================
+# SECTION 4: Systemkonfiguration
+# ============================================================================
+
+- name: "System: Zeitzone setzen"
+  community.general.timezone:
+    name: "{{ system_timezone | default('UTC') }}"
+  tags:
+    - system_setup
+    - configuration
+
+- name: "System: Locale konfigurieren"
+  ansible.builtin.command:
+    cmd: "update-locale LANG={{ system_locale | default('en_US.UTF-8') }}"
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - configuration
+
+- name: "System: Hostname validieren (nicht ändern bei laufendem PVE)"
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == ansible_hostname
+    fail_msg: |
+      Hostname-Mismatch erkannt!
+      Inventory: {{ inventory_hostname }}
+      System: {{ ansible_hostname }}
+      Hostname-Änderungen bei laufendem Proxmox sind kritisch und erfordern manuelle Schritte.
+      Bitte synchronisieren Sie die Hostnamen manuell oder kontaktieren Sie den Administrator.
+  tags:
+    - system_setup
+    - configuration
+    - proxmox
+
+# ============================================================================
+# SECTION 5: Firewall Management
+# ============================================================================
+
+- name: "Firewall: UFW entfernen (inkompatibel mit PVE Firewall)"
+  ansible.builtin.apt:
+    name: ufw
+    state: absent
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - firewall
+    - proxmox
+
+- name: "Firewall: PVE Firewall Cluster-Konfiguration"
+  ansible.builtin.file:
+    path: /etc/pve/firewall
+    state: directory
+    mode: '0755'
+  tags:
+    - system_setup
+    - firewall
+    - proxmox
+
+- name: "Firewall: PVE Firewall aktivieren (Cluster Level)"
+  ansible.builtin.lineinfile:
+    path: /etc/pve/firewall/cluster.fw
+    line: "enable: 1"
+    create: yes
+    mode: '0644'
+  tags:
+    - system_setup
+    - firewall
+    - proxmox
+
+- name: "Firewall: SSH Regel hinzufügen (Management)"
+  ansible.builtin.blockinfile:
+    path: /etc/pve/firewall/cluster.fw
+    block: |
+      [RULES]
+      IN SSH(ACCEPT)
+      IN HTTPS(ACCEPT)
+    create: yes
+    mode: '0644'
+  tags:
+    - system_setup
+    - firewall
+    - proxmox
+
+# ============================================================================
+# SECTION 6: Logging und Verzeichnisse
+# ============================================================================
+
+- name: "System: Log-Verzeichnis erstellen"
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    mode: '0755'
+  tags:
+    - system_setup
+    - logging
+
+- name: "System: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "System-Setup erfolgreich abgeschlossen"
+      - "Proxmox VE Basis-Konfiguration durchgeführt"
+      - "Repositories konfiguriert"
+      - "Firewall konfiguriert"
+  tags:
+    - system_setup

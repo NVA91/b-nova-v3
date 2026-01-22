@@ -1,0 +1,26 @@
+---
+# system_setup Role - Handler für Proxmox VE
+
+- name: restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+  listen: "restart ssh"
+
+- name: reload networking
+  ansible.builtin.command: "ifreload -a"
+  listen: "reload networking"
+  async: 30
+  poll: 0
+
+- name: restart pve-cluster
+  ansible.builtin.service:
+    name: pve-cluster
+    state: restarted
+  listen: "restart pve-cluster"
+
+- name: restart pve-firewall
+  ansible.builtin.service:
+    name: pve-firewall
+    state: restarted
+  listen: "restart pve-firewall"

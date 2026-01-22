@@ -1,0 +1,94 @@
+---
+nova_hardware:
+  spec:
+    name: "GMKtec Ryzen 7 8845HS"
+    type: "mini_pc"
+    cpu:
+      model: "AMD Ryzen 7 8845HS"
+      cores: 8
+      threads: 16
+      base_clock: "3.8 GHz"
+      boost_clock: "5.1 GHz"
+      tdp: 45
+      architecture: "Zen 4"
+    gpu:
+      model: "AMD Radeon 780M"
+      type: "integrated"
+      compute_units: 12
+      vram_shared: true
+      max_frequency: "2700 MHz"
+      rocm_support: true
+      vulkan_support: true
+    memory:
+      total_gb: 32
+      type: "DDR5"
+      speed: "5600 MHz"
+      channels: 2
+    storage:
+      type: "NVMe SSD"
+      recommended_min: "512 GB"
+
+  docker:
+    global_limits:
+      cpu_count: 14
+      memory: "28g"
+      swap: "4g"
+    agent_defaults:
+      cpu_shares: 1024
+      memory: "2g"
+      memory_reservation: "1g"
+    agent_profiles:
+      core:     { cpu_count: 4, memory: "4g", priority: "high" }
+      devops:   { cpu_count: 2, memory: "3g", priority: "high" }
+      security: { cpu_count: 2, memory: "2g", priority: "high" }
+      research: { cpu_count: 2, memory: "3g", priority: "medium" }
+      dev:      { cpu_count: 2, memory: "2g", priority: "medium" }
+      media:    { cpu_count: 2, memory: "4g", gpu_access: true, priority: "medium" }
+      business: { cpu_count: 1, memory: "2g", priority: "low" }
+      health:   { cpu_count: 1, memory: "1g", priority: "low" }
+      ai:       { cpu_count: 3, memory: "6g", gpu_access: true, priority: "high" }
+
+  gpu:
+    enabled: true
+    driver: "rocm"
+    docker_runtime: ["nvidia", "rocm"]
+    device_mapping:
+      - "/dev/dri:/dev/dri"
+      - "/dev/kfd:/dev/kfd"
+    environment:
+      - "HSA_OVERRIDE_GFX_VERSION=11.0.0"
+      - "ROCR_VISIBLE_DEVICES=0"
+    agents_with_gpu: ["media", "ai"]
+
+  performance:
+    governor: "performance"
+    swappiness: 10
+    docker_storage_driver: "overlay2"
+    network:
+      tcp_fastopen: true
+      tcp_bbr: true
+    io_scheduler: "mq-deadline"
+
+  power:
+    mode: "balanced"
+    profiles:
+      powersave:
+        cpu_governor: "powersave"
+        max_cpu_freq: "3.8 GHz"
+        gpu_power_limit: 15
+      balanced:
+        cpu_governor: "schedutil"
+        max_cpu_freq: "4.5 GHz"
+        gpu_power_limit: 25
+      performance:
+        cpu_governor: "performance"
+        max_cpu_freq: "5.1 GHz"
+        gpu_power_limit: 35
+
+  monitoring:
+    cpu_temp_warning: 80
+    cpu_temp_critical: 95
+    memory_warning: 85
+    memory_critical: 95
+    disk_warning: 80
+    disk_critical: 90

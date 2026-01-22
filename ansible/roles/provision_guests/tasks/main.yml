@@ -1,0 +1,253 @@
+---
+# provision_guests Role - VM-Erstellung und Konfiguration
+
+# ============================================================================
+# SECTION 1: Vorbereitung und Abhängigkeiten
+# ============================================================================
+
+- name: "Provision: Installiere erforderliche Tools"
+  ansible.builtin.apt:
+    name:
+      - libguestfs-tools
+      - qemu-utils
+      - cloud-image-utils
+    state: present
+  tags:
+    - provision
+    - dependencies
+
+- name: "Provision: Erstelle Template-Verzeichnis"
+  ansible.builtin.file:
+    path: "{{ cloud_init_template.image_path | dirname }}"
+    state: directory
+    mode: '0755'
+  tags:
+    - provision
+    - directories
+
+# ============================================================================
+# SECTION 2: Cloud Image Download
+# ============================================================================
+
+- name: "Provision: Lade Ubuntu 22.04 Cloud Image herunter"
+  ansible.builtin.get_url:
+    url: "{{ cloud_init_template.image_url }}"
+    dest: "{{ cloud_init_template.image_path }}"
+    mode: '0644'
+  register: img_download
+  tags:
+    - provision
+    - image
+
+- name: "Provision: Zeige Image-Download-Status"
+  ansible.builtin.debug:
+    msg: "Cloud Image heruntergeladen: {{ img_download.changed }}"
+  tags:
+    - provision
+    - image
+
+# ============================================================================
+# SECTION 3: Cloud-Init Template erstellen
+# ============================================================================
+
+- name: "Provision: Prüfe ob Template bereits existiert"
+  ansible.builtin.command:
+    cmd: "qm status {{ cloud_init_template.template_vmid }}"
+  register: template_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - provision
+    - template
+
+- name: "Provision: Erstelle Cloud-Init Template"
+  block:
+    - name: "Template: Zerstöre altes Template falls existent"
+      ansible.builtin.command:
+        cmd: "qm destroy {{ cloud_init_template.template_vmid }}"
+      failed_when: false
+      tags:
+        - provision
+        - template
+
+    - name: "Template: Erstelle neue VM"
+      ansible.builtin.command:
+        cmd: >
+          qm create {{ cloud_init_template.template_vmid }}
+          --name {{ cloud_init_template.template_name }}
+          --memory {{ cloud_init_template.memory }}
+          --net0 virtio,bridge=vmbr0
+          --cores 2
+          --sockets 1
+      tags:
+        - provision
+        - template
+
+    - name: "Template: Importiere Disk"
+      ansible.builtin.command:
+        cmd: >
+          qm importdisk {{ cloud_init_template.template_vmid }}
+          {{ cloud_init_template.image_path }}
+          {{ storage_thin_pool | default('local-lvm') }}
+      tags:
+        - provision
+        - template
+
+    - name: "Template: Konfiguriere Disk Settings"
+      ansible.builtin.shell: |
+        qm set {{ cloud_init_template.template_vmid }} --scsihw virtio-scsi-pci --scsi0 {{ storage_thin_pool | default('local-lvm') }}:vm-{{ cloud_init_template.template_vmid }}-disk-0
+        qm set {{ cloud_init_template.template_vmid }} --ide2 {{ storage_thin_pool | default('local-lvm') }}:cloudinit
+        qm set {{ cloud_init_template.template_vmid }} --boot c --bootdisk scsi0
+        qm set {{ cloud_init_template.template_vmid }} --serial0 socket --vga serial0
+        qm resize {{ cloud_init_template.template_vmid }} scsi0 {{ cloud_init_template.disk_size }}G
+        qm template {{ cloud_init_template.template_vmid }}
+      tags:
+        - provision
+        - template
+
+    - name: "Template: Zeige Template-Erstellung"
+      ansible.builtin.debug:
+        msg: "Cloud-Init Template {{ cloud_init_template.template_vmid }} erstellt"
+      tags:
+        - provision
+        - template
+
+  when: template_check.rc != 0
+  tags:
+    - provision
+    - template
+
+# ============================================================================
+# SECTION 4: VMs aus Template klonen
+# ============================================================================
+
+- name: "Provision: Erstelle VMs aus Template"
+  block:
+    - name: "VMs: Prüfe ob VM bereits existiert"
+      ansible.builtin.command:
+        cmd: "qm status {{ item.vmid }}"
+      register: vm_check
+      failed_when: false
+      changed_when: false
+      loop: "{{ guest_vms }}"
+      tags:
+        - provision
+        - vms
+
+    - name: "VMs: Klone VMs aus Template"
+      ansible.builtin.shell: |
+        qm clone {{ cloud_init_template.template_vmid }} {{ item.vmid }} --name {{ item.name }} --full
+        qm set {{ item.vmid }} --cores {{ item.cores }} --memory {{ item.memory }}
+        qm set {{ item.vmid }} --ipconfig0 ip=dhcp
+        qm set {{ item.vmid }} --onboot {{ 1 if item.start_on_boot else 0 }}
+        qm set {{ item.vmid }} --description "{{ item.description }}"
+        qm set {{ item.vmid }} --tags "{{ item.tags | join(',') }}"
+      loop: "{{ guest_vms }}"
+      when: hostvars['localhost'].vm_check.results[ansible_loop.index0].rc != 0
+      tags:
+        - provision
+        - vms
+
+    - name: "VMs: Konfiguriere SSH-Keys für VMs"
+      ansible.builtin.shell: |
+        qm set {{ item.vmid }} --sshkey /root/.ssh/authorized_keys
+      loop: "{{ guest_vms }}"
+      tags:
+        - provision
+        - vms
+        - ssh
+
+    - name: "VMs: Starte VMs"
+      ansible.builtin.command:
+        cmd: "qm start {{ item.vmid }}"
+      loop: "{{ guest_vms }}"
+      when: item.start_on_boot | bool
+      tags:
+        - provision
+        - vms
+
+  tags:
+    - provision
+    - vms
+
+# ============================================================================
+# SECTION 5: Warte auf VM-Startup und Netzwerk
+# ============================================================================
+
+- name: "Provision: Warte auf VM-Startup"
+  ansible.builtin.pause:
+    seconds: 30
+  tags:
+    - provision
+    - wait
+
+- name: "Provision: Prüfe VM-Status"
+  ansible.builtin.command:
+    cmd: "qm status {{ item.vmid }}"
+  loop: "{{ guest_vms }}"
+  when: item.start_on_boot | bool
+  register: vm_status
+  tags:
+    - provision
+    - status
+
+- name: "Provision: Zeige VM-Status"
+  ansible.builtin.debug:
+    msg: "VM {{ item.item.name }} Status: {{ item.stdout }}"
+  loop: "{{ vm_status.results }}"
+  when: item.stdout is defined
+  tags:
+    - provision
+    - status
+
+# ============================================================================
+# SECTION 6: Dynamisches Inventory aktualisieren
+# ============================================================================
+
+- name: "Provision: Hole VM IP-Adressen"
+  ansible.builtin.shell: |
+    qm guest cmd {{ item.vmid }} network-get-interfaces 2>/dev/null | grep -oP '(?<="ip-address":")[^"]*' | head -1 || echo "dhcp"
+  loop: "{{ guest_vms }}"
+  register: vm_ips
+  failed_when: false
+  tags:
+    - provision
+    - inventory
+
+- name: "Provision: Registriere VMs im Inventory"
+  ansible.builtin.add_host:
+    name: "{{ item.item.name }}"
+    groups: "guest_vms,{{ item.item.tags[0] }}"
+    ansible_host: "{{ item.stdout if item.stdout != 'dhcp' else item.item.name }}"
+    ansible_user: "{{ default_user | default('ubuntu') }}"
+    vm_id: "{{ item.item.vmid }}"
+    vm_hostname: "{{ item.item.hostname }}"
+    vm_domain: "{{ item.item.domain }}"
+    vm_apps: "{{ item.item.apps }}"
+  loop: "{{ vm_ips.results }}"
+  when: item.stdout is defined and item.stdout != ''
+  tags:
+    - provision
+    - inventory
+
+- name: "Provision: Zeige Inventory-Update"
+  ansible.builtin.debug:
+    msg: "VM {{ item.item.name }} hinzugefügt mit IP: {{ item.stdout }}"
+  loop: "{{ vm_ips.results }}"
+  when: item.stdout is defined and item.stdout != ''
+  tags:
+    - provision
+    - inventory
+
+# ============================================================================
+# SECTION 7: Abschluss
+# ============================================================================
+
+- name: "Provision: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "VM-Provisioning abgeschlossen"
+      - "Erstellte VMs: {{ guest_vms | map(attribute='name') | list }}"
+      - "Template ID: {{ cloud_init_template.template_vmid }}"
+  tags:
+    - provision

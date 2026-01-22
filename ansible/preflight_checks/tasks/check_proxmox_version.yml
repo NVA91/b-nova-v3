@@ -1,0 +1,58 @@
+---
+# Check Proxmox Version
+# Erkennt und validiert die Proxmox VE Version
+
+- name: Get Proxmox version
+  shell: pveversion | grep -oP 'pve-manager/\K[0-9]+\.[0-9]+'
+  register: proxmox_version_result
+  changed_when: false
+  failed_when: false
+  tags: [preflight, version]
+
+- name: Set Proxmox version fact
+  set_fact:
+    detected_proxmox_version: "{{ proxmox_version_result.stdout | default('unknown') }}"
+  tags: [preflight, version]
+
+- name: Display detected Proxmox version
+  debug:
+    msg: "Detected Proxmox VE version: {{ detected_proxmox_version }}"
+  tags: [preflight, version]
+
+- name: Check if Proxmox version meets requirements
+  assert:
+    that:
+      - proxmox_version_result.rc == 0
+      - detected_proxmox_version is version(proxmox_version_required, '>=')
+    fail_msg: |
+      Proxmox version check failed!
+      Required: {{ proxmox_version_required }}
+      Detected: {{ detected_proxmox_version }}
+    success_msg: "Proxmox version {{ detected_proxmox_version }} meets requirements (>= {{ proxmox_version_required }})"
+  when: proxmox_version_required is defined
+  tags: [preflight, version]
+
+- name: Check Proxmox API availability
+  uri:
+    url: "https://{{ ansible_host | default(inventory_hostname) }}:8006/api2/json/version"
+    method: GET
+    validate_certs: false
+    status_code: 200
+  register: proxmox_api_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, version, api]
+
+- name: Display Proxmox API status
+  debug:
+    msg: "Proxmox API is {{ 'available' if proxmox_api_check.status == 200 else 'unavailable' }}"
+  tags: [preflight, version, api]
+
+- name: Fail if Proxmox API is not available
+  fail:
+    msg: "Proxmox API is not reachable at https://{{ ansible_host | default(inventory_hostname) }}:8006"
+  when:
+    - proxmox_api_check.status is defined
+    - proxmox_api_check.status != 200
+    - strict_api_check | default(false) | bool
+  tags: [preflight, version, api]

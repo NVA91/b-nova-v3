@@ -1,0 +1,56 @@
+---
+# Preflight Checks - Haupttasks
+# Führt alle notwendigen Checks vor dem Deployment durch
+
+- name: Display preflight check banner
+  debug:
+    msg: |
+      ╔════════════════════════════════════════════════════════════════╗
+      ║  Preflight Checks - Nova Universe Control Center              ║
+      ╚════════════════════════════════════════════════════════════════╝
+
+- name: Check if running in controller mode
+  set_fact:
+    is_controller_mode: "{{ controller_mode | default(false) | bool }}"
+  tags: [always]
+
+- name: Check Proxmox version (skip in controller mode)
+  include_tasks: check_proxmox_version.yml
+  when:
+    - not is_controller_mode
+    - proxmox_version_check | default(false) | bool
+  tags: [preflight, version]
+
+- name: Check Ansible Vault availability
+  include_tasks: check_vault.yml
+  when: require_vault | default(false) | bool
+  tags: [preflight, vault]
+
+- name: Check SSH keys
+  include_tasks: check_ssh_keys.yml
+  when: require_ssh_key | default(false) | bool
+  tags: [preflight, ssh]
+
+- name: Check network connectivity
+  include_tasks: check_network.yml
+  when: not is_controller_mode
+  tags: [preflight, network]
+
+- name: Check storage availability
+  include_tasks: check_storage.yml
+  when:
+    - not is_controller_mode
+    - enable_storage_checks | default(true) | bool
+  tags: [preflight, storage]
+
+- name: Check Python dependencies
+  include_tasks: check_python_deps.yml
+  tags: [preflight, python]
+
+- name: Display preflight check summary
+  debug:
+    msg: |
+      ╔════════════════════════════════════════════════════════════════╗
+      ║  All preflight checks passed! ✓                               ║
+      ╚════════════════════════════════════════════════════════════════╝
+  tags: [always]

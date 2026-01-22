@@ -1,0 +1,60 @@
+---
+# Check SSH Keys
+# Prüft ob SSH-Keys vorhanden und korrekt konfiguriert sind
+
+- name: Check for SSH private key
+  stat:
+    path: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_ed25519') }}"
+  register: ssh_private_key
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Check for SSH public key
+  stat:
+    path: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_ed25519') }}.pub"
+  register: ssh_public_key
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Display SSH key status
+  debug:
+    msg: |
+      SSH private key: {{ 'found' if ssh_private_key.stat.exists else 'not found' }}
+      SSH public key: {{ 'found' if ssh_public_key.stat.exists else 'not found' }}
+  tags: [preflight, ssh]
+
+- name: Check SSH private key permissions
+  assert:
+    that:
+      - ssh_private_key.stat.mode == '0600'
+    fail_msg: "SSH private key has insecure permissions! Should be 0600, is {{ ssh_private_key.stat.mode }}"
+    success_msg: "SSH private key has correct permissions (0600)"
+  when: ssh_private_key.stat.exists
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Test SSH connectivity to target hosts
+  wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: "{{ ansible_port | default(22) }}"
+    timeout: 10
+  register: ssh_connectivity
+  failed_when: false
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, ssh]
+
+- name: Display SSH connectivity status
+  debug:
+    msg: "SSH connectivity to {{ inventory_hostname }}: {{ 'OK' if ssh_connectivity is succeeded else 'FAILED' }}"
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, ssh]
+
+- name: Fail if SSH keys are required but not found
+  fail:
+    msg: |
+      SSH keys are required but not found!
+      Please generate SSH keys with: ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+  when:
+    - require_ssh_key | default(false) | bool
+    - not ssh_private_key.stat.exists or not ssh_public_key.stat.exists
+  tags: [preflight, ssh]

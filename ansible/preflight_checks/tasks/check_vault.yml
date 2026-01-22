@@ -1,0 +1,45 @@
+---
+# Check Ansible Vault
+# Prüft ob Ansible Vault verfügbar und konfiguriert ist
+
+- name: Check if vault password file exists
+  stat:
+    path: "{{ vault_password_file | default('.vault_pass') }}"
+  register: vault_pass_file
+  delegate_to: localhost
+  tags: [preflight, vault]
+
+- name: Display vault password file status
+  debug:
+    msg: "Vault password file: {{ 'found' if vault_pass_file.stat.exists else 'not found' }}"
+  tags: [preflight, vault]
+
+- name: Check vault password file permissions
+  assert:
+    that:
+      - vault_pass_file.stat.mode == '0600'
+    fail_msg: "Vault password file has insecure permissions! Should be 0600, is {{ vault_pass_file.stat.mode }}"
+    success_msg: "Vault password file has correct permissions (0600)"
+  when: vault_pass_file.stat.exists
+  delegate_to: localhost
+  tags: [preflight, vault]
+
+- name: Try to decrypt a test vault variable
+  command: ansible-vault view --vault-password-file="{{ vault_password_file | default('.vault_pass') }}" /dev/null
+  register: vault_test
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  when: vault_pass_file.stat.exists
+  tags: [preflight, vault]
+
+- name: Fail if vault is required but not configured
+  fail:
+    msg: |
+      Ansible Vault is required but not properly configured!
+      Please create a vault password file at: {{ vault_password_file | default('.vault_pass') }}
+      And ensure it has correct permissions: chmod 600 {{ vault_password_file | default('.vault_pass') }}
+  when:
+    - require_vault | default(false) | bool
+    - not vault_pass_file.stat.exists
+  tags: [preflight, vault]

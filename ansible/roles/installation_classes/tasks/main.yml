@@ -1,0 +1,45 @@
+---
+# installation_classes Role - Installationsklassen-Management
+
+- name: "Installation Classes: Core-Infrastruktur (do_infra)"
+  block:
+    - name: "Include Core Installation Tasks"
+      ansible.builtin.include_tasks:
+        file: core/main.yml
+  when: hostvars['WIZARD_CONFIG']['do_infra']
+  tags:
+    - installation_classes
+    - core
+    - infrastructure
+
+- name: "Installation Classes: Applikationen (do_apps)"
+  block:
+    - name: "Include Apps Installation Tasks"
+      ansible.builtin.include_tasks:
+        file: apps/main.yml
+  when: hostvars['WIZARD_CONFIG']['do_apps']
+  tags:
+    - installation_classes
+    - apps
+    - applications
+
+- name: "Installation Classes: Maintenance & Tests (do_test)"
+  block:
+    - name: "Include Maintenance Tasks"
+      ansible.builtin.include_tasks:
+        file: maintenance/main.yml
+  when: hostvars['WIZARD_CONFIG']['do_test']
+  tags:
+    - installation_classes
+    - maintenance
+    - testing
+
+- name: "Installation Classes: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "Installation Classes abgeschlossen"
+      - "do_infra: {{ hostvars['WIZARD_CONFIG']['do_infra'] }}"
+      - "do_apps: {{ hostvars['WIZARD_CONFIG']['do_apps'] }}"
+      - "do_test: {{ hostvars['WIZARD_CONFIG']['do_test'] }}"
+  tags:
+    - installation_classes

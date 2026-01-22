@@ -1,0 +1,53 @@
+---
+# Check Network Connectivity
+# Prüft Netzwerk-Konnektivität zu wichtigen Zielen
+
+- name: Check internet connectivity
+  uri:
+    url: https://www.google.com
+    method: GET
+    timeout: 10
+    status_code: 200
+  register: internet_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, network]
+
+- name: Display internet connectivity status
+  debug:
+    msg: "Internet connectivity: {{ 'OK' if internet_check is succeeded else 'FAILED' }}"
+  tags: [preflight, network]
+
+- name: Check DNS resolution
+  command: nslookup google.com
+  register: dns_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, network]
+
+- name: Display DNS resolution status
+  debug:
+    msg: "DNS resolution: {{ 'OK' if dns_check.rc == 0 else 'FAILED' }}"
+  tags: [preflight, network]
+
+- name: Check connectivity to Proxmox host
+  wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: 8006
+    timeout: 10
+  register: proxmox_connectivity
+  failed_when: false
+  when: "'proxmox' in group_names"
+  tags: [preflight, network]
+
+- name: Display Proxmox connectivity status
+  debug:
+    msg: "Proxmox connectivity: {{ 'OK' if proxmox_connectivity is succeeded else 'FAILED' }}"
+  when: "'proxmox' in group_names"
+  tags: [preflight, network]
+
+- name: Warn if internet connectivity is not available
+  debug:
+    msg: "WARNING: Internet connectivity check failed. Some features may not work."
+  when: internet_check is failed
+  tags: [preflight, network]

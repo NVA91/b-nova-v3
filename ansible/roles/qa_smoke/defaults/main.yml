@@ -1,0 +1,23 @@
+---
+# qa_smoke Role - Standardwerte
+
+# QA-Validierung aktivieren
+do_validate: true
+
+# Zu prüfende Ports
+qa_ports:
+  - 22
+  - 80
+
+# Zu prüfende URLs
+qa_urls:
+  - "http://localhost"
+
+# Docker-Netzwerk
+qa_docker_network: novachris_home_net
+
+# Container-Namen (optional)
+qa_containers: []
+
+# Log-Verzeichnis
+log_dir: /var/log/novachris_home

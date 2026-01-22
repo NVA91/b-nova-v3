@@ -1,6 +1,6 @@
 # 🚀 NOVA v3 - Deployment Guide (mit Traefik)
 
-Diese Anleitung beschreibt, wie du NOVA v3 auf einem Hostinger VPS (oder einem anderen Server) mit Traefik als Reverse Proxy deployen kannst.
+Diese Anleitung beschreibt, wie du NOVA v3 auf einem VPS (oder einem anderen Server) mit Traefik als Reverse Proxy deployen kannst.
 
 ## Voraussetzungen
 

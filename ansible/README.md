@@ -1,189 +1,109 @@
-# 🎯 NOVA v3 Ansible Playbooks
+# NOVA v3 - Ansible Playbooks
 
-Ansible-Playbooks und Rollen für NOVA v3 Infrastruktur-Automation.
+This directory contains Ansible playbooks and roles for configuring and managing the NOVA v3 ecosystem.
 
----
+## 1. Samba Playbook
 
-## 📋 Verfügbare Playbooks
+The `samba.yml` playbook installs and configures a Samba server for network shares.
 
-### 1. Samba Server
-
-**Playbook:** `playbooks/samba.yml`  
-**Rolle:** `roles/samba/`
-
-Installiert und konfiguriert einen Samba-Server für Netzwerk-Shares.
-
-**Features:**
-- ✅ Samba-Installation
-- ✅ Share-Konfiguration
-- ✅ Benutzer-Verwaltung
-- ✅ Firewall-Konfiguration
-
-**Verwendung:**
+**Usage:**
 
 ```bash
-# Inventory anpassen
-vim inventory/hosts.yml
-
-# Playbook ausführen
-ansible-playbook -i inventory/hosts.yml playbooks/samba.yml
-
-# Mit Passwort-Variablen
-ansible-playbook -i inventory/hosts.yml playbooks/samba.yml \
-  -e "samba_nova_password=secure_password" \
-  -e "samba_admin_password=secure_password"
+ansible-playbook playbooks/samba.yml -i inventory/hosts.yml
 ```
 
-**Konfiguration:**
+## 2. YubiKey Playbook
 
-```yaml
-samba_shares:
-  - name: "my-share"
-    path: "/data/my-share"
-    comment: "My Custom Share"
-    browseable: "yes"
-    writable: "yes"
-    guest_ok: "no"
-    valid_users: "user1,user2"
-```
+The `yubikey.yml` playbook configures a YubiKey for 2-factor authentication.
 
----
-
-### 2. YubiKey 2FA
-
-**Playbook:** `playbooks/yubikey.yml`  
-**Rolle:** `roles/yubikey/`
-
-Konfiguriert YubiKey 5C Nano für 2-Faktor-Authentifizierung.
-
-**Features:**
-- ✅ YubiKey-Software-Installation
-- ✅ PAM-Integration
-- ✅ SSH-Authentifizierung
-- ✅ U2F-Support
-- ✅ Sudo-2FA
-
-**Verwendung:**
+**Usage:**
 
 ```bash
-# 1. YubiKey API-Credentials holen
-# https://upgrade.yubico.com/getapikey/
-
-# 2. YubiKey ID ermitteln
-# Öffne einen Texteditor und drücke YubiKey-Button
-# Kopiere die ersten 12 Zeichen (z.B. cccccccccccc)
-
-# 3. Playbook ausführen
-ansible-playbook -i inventory/hosts.yml playbooks/yubikey.yml \
-  -e "vault_yubikey_client_id=YOUR_CLIENT_ID" \
-  -e "vault_yubikey_secret_key=YOUR_SECRET_KEY"
+ansible-playbook playbooks/yubikey.yml -i inventory/hosts.yml
 ```
 
-**⚠️ WICHTIG:**
-- Teste YubiKey-Authentifizierung bevor du die aktuelle Session schließt!
-- Halte eine Backup-SSH-Session offen
-- Stelle sicher, dass du physischen Zugriff auf den Server hast
+## 3. System Setup Playbook
 
----
+The `system_setup.yml` playbook performs the basic system configuration for Proxmox VE.
 
-## 🚀 Schnellstart
-
-### 1. Inventory konfigurieren
+**Usage:**
 
 ```bash
-# Kopiere Beispiel-Inventory
-cp inventory/hosts.yml inventory/my-hosts.yml
-
-# Passe Hosts an
-vim inventory/my-hosts.yml
+ansible-playbook playbooks/system_setup.yml -i inventory/hosts.yml
 ```
 
-### 2. Ansible testen
+**Tags:**
+
+- `system_setup`: All tasks in this role
+- `packages`: Package installation
+- `configuration`: Configuration
+- `firewall`: Firewall configuration
+- `logging`: Logging configuration
+
+## 4. User Management Playbook
+
+The `user_management.yml` playbook manages user accounts and SSH keys on target hosts.
+
+**Usage:**
 
 ```bash
-# Ping alle Hosts
-ansible -i inventory/my-hosts.yml all -m ping
-
-# Teste Samba-Server
-ansible -i inventory/my-hosts.yml samba_servers -m ping
+ansible-playbook playbooks/user_management.yml -i inventory/hosts.yml
 ```
 
-### 3. Playbook ausführen
+**Tags:**
+
+- `user_management`: All tasks in this role
+- `users`: User management
+- `ssh`: SSH configuration
+- `sudo`: Sudo configuration
+- `hardening`: Security hardening
+
+## 5. Docker Setup Playbook
+
+The `docker_setup.yml` playbook installs and configures Docker and Docker Compose.
+
+**Usage:**
 
 ```bash
-# Dry-Run (Check-Mode)
-ansible-playbook -i inventory/my-hosts.yml playbooks/samba.yml --check
-
-# Echte Ausführung
-ansible-playbook -i inventory/my-hosts.yml playbooks/samba.yml
+ansible-playbook playbooks/docker_setup.yml -i inventory/hosts.yml
 ```
 
----
+**Tags:**
 
-## 📁 Struktur
+- `docker_setup`: All tasks in this role
+- `docker`: Docker-specific tasks
+- `dependencies`: Dependency installation
+- `repos`: Repository configuration
+- `installation`: Docker installation
+- `configuration`: Docker daemon configuration
+- `service`: Docker service management
+- `users`: Docker user configuration
+- `directories`: Docker Compose directory setup
+- `validation`: Docker validation
 
-```
-ansible/
-├── playbooks/           # Ansible Playbooks
-│   ├── samba.yml
-│   └── yubikey.yml
-├── roles/               # Ansible Rollen
-│   ├── samba/
-│   │   ├── tasks/
-│   │   ├── handlers/
-│   │   ├── templates/
-│   │   └── defaults/
-│   └── yubikey/
-│       ├── tasks/
-│       ├── handlers/
-│       ├── templates/
-│       └── defaults/
-├── inventory/           # Ansible Inventory
-│   └── hosts.yml
-└── README.md            # Diese Datei
-```
+## 6. Installation Classes Playbook
 
----
+The `installation_classes.yml` playbook groups installation and configuration tasks into logical classes (Core, Apps, Maintenance).
 
-## 🔧 Tipps
-
-### Ansible Vault für Secrets
+**Usage:**
 
 ```bash
-# Secrets verschlüsseln
-ansible-vault encrypt_string 'my_secret_password' --name 'samba_nova_password'
+# Full installation (all classes)
+ansible-playbook playbooks/installation_classes.yml -i inventory/hosts.yml
 
-# Playbook mit Vault ausführen
-ansible-playbook -i inventory/hosts.yml playbooks/samba.yml --ask-vault-pass
+# Only core infrastructure
+ansible-playbook playbooks/installation_classes.yml -i inventory/hosts.yml -e "do_infra=true do_apps=false do_test=false"
+
+# Only applications
+ansible-playbook playbooks/installation_classes.yml -i inventory/hosts.yml -e "do_infra=false do_apps=true do_test=false"
 ```
 
-### Ansible-Konfiguration
+**Tags:**
 
-Erstelle `ansible.cfg` im Projekt-Root:
-
-```ini
-[defaults]
-inventory = ansible/inventory/hosts.yml
-remote_user = ubuntu
-host_key_checking = False
-retry_files_enabled = False
-
-[privilege_escalation]
-become = True
-become_method = sudo
-become_user = root
-become_ask_pass = False
-```
-
----
-
-## 📚 Weitere Ressourcen
-
-- [Ansible Documentation](https://docs.ansible.com/)
-- [Samba Documentation](https://www.samba.org/samba/docs/)
-- [YubiKey Documentation](https://developers.yubico.com/)
-
----
-
-**Erstellt von:** NOVA v3  
-**Datum:** 2026-01-17
+- `installation_classes`: All tasks in this role
+- `core`: Core infrastructure tasks
+- `infrastructure`: Infrastructure tasks
+- `apps`: Application tasks
+- `applications`: Application tasks
+- `maintenance`: Maintenance tasks
+- `testing`: Testing tasks

@@ -1,0 +1,165 @@
+---
+# user_management Role - Benutzerverwaltung für Proxmox VE
+
+- name: "User Management: Prüfe SSH-Schlüssel-Pfad"
+  ansible.builtin.fail:
+    msg: "Variable 'ssh_key_path' fehlt. Bitte führe './setup_prod_env.sh' aus."
+  when: ssh_key_path is not defined
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - user_management
+    - ssh
+
+- name: "User Management: Lese öffentlichen SSH-Schlüssel"
+  ansible.builtin.slurp:
+    src: "{{ ssh_key_path }}"
+  register: ssh_key_content
+  delegate_to: localhost
+  run_once: true
+  tags:
+    - user_management
+    - ssh
+
+- name: "User Management: Admin-Benutzer erstellen"
+  ansible.builtin.user:
+    name: "{{ default_user | default('admin_novachris') }}"
+    state: present
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    createhome: yes
+  tags:
+    - user_management
+    - users
+
+- name: "User Management: SSH-Verzeichnis für Admin-Benutzer erstellen"
+  ansible.builtin.file:
+    path: "/home/{{ default_user | default('admin_novachris') }}/.ssh"
+    state: directory
+    owner: "{{ default_user | default('admin_novachris') }}"
+    group: "{{ default_user | default('admin_novachris') }}"
+    mode: '0700'
+  tags:
+    - user_management
+    - ssh
+
+- name: "User Management: Authorized Keys für Admin-Benutzer setzen"
+  ansible.posix.authorized_key:
+    user: "{{ default_user | default('admin_novachris') }}"
+    state: present
+    key: "{{ ssh_key_content.content | b64decode }}"
+    exclusive: no
+  tags:
+    - user_management
+    - ssh
+
+- name: "User Management: Sudo-Konfiguration für Admin-Benutzer"
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/{{ default_user | default('admin_novachris') }}
+    line: "{{ default_user | default('admin_novachris') }} ALL=(ALL) NOPASSWD:ALL"
+    create: yes
+    mode: '0440'
+  tags:
+    - user_management
+    - sudo
+
+# ============================================================================
+# SECTION: SSH-Sicherheit (Proxmox-kompatibel)
+# ============================================================================
+
+- name: "SSH: Passwort-Authentifizierung deaktivieren"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  notify: restart ssh
+  tags:
+    - user_management
+    - ssh
+    - hardening
+
+- name: "SSH: Root-Login auf Key-Authentifizierung beschränken (Proxmox-Cluster kompatibel)"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin prohibit-password"
+  notify: restart ssh
+  tags:
+    - user_management
+    - ssh
+    - hardening
+    - proxmox
+
+- name: "SSH: Nur Key-basierte Authentifizierung"
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PubkeyAuthentication"
+    line: "PubkeyAuthentication yes"
+  notify: restart ssh
+  tags:
+    - user_management
+    - ssh
+    - hardening
+
+# ============================================================================
+# SECTION: Proxmox User Management (PVE Realm)
+# ============================================================================
+
+- name: "PVE User: Prüfe ob pveum verfügbar ist"
+  ansible.builtin.command:
+    cmd: "which pveum"
+  register: pveum_check
+  failed_when: false
+  changed_when: false
+  tags:
+    - user_management
+    - pve_user
+    - proxmox
+
+- name: "PVE User: User zu Proxmox PAM Realm hinzufügen"
+  ansible.builtin.command:
+    cmd: "pveum user add {{ default_user | default('admin_novachris') }}@pam --comment 'Managed by Ansible'"
+  register: pve_user_add
+  changed_when: "pve_user_add.rc == 0"
+  failed_when: "pve_user_add.rc != 0 and 'already exists' not in pve_user_add.stderr"
+  when: pveum_check.rc == 0
+  tags:
+    - user_management
+    - pve_user
+    - proxmox
+
+- name: "PVE User: Admin-Rolle zuweisen"
+  ansible.builtin.command:
+    cmd: "pveum acl modify / -user {{ default_user | default('admin_novachris') }}@pam -role PVEAdmin"
+  register: pve_acl
+  changed_when: "pve_acl.rc == 0"
+  when: pveum_check.rc == 0
+  tags:
+    - user_management
+    - pve_user
+    - proxmox
+
+- name: "PVE User: Berechtigungen validieren"
+  ansible.builtin.debug:
+    msg:
+      - "Proxmox User Management:"
+      - "  User: {{ default_user | default('admin_novachris') }}@pam"
+      - "  Rolle: PVEAdmin"
+      - "  Zugriff: Webinterface (Port 8006) + SSH"
+  when: pveum_check.rc == 0
+  tags:
+    - user_management
+    - pve_user
+    - proxmox
+
+- name: "User Management: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "User-Management erfolgreich abgeschlossen"
+      - "Linux User: {{ default_user | default('admin_novachris') }}"
+      - "SSH-Zugriff: aktiviert"
+      - "Sudo-Rechte: aktiviert"
+      - "Proxmox GUI: {{ 'aktiviert' if pveum_check.rc == 0 else 'nicht verfügbar' }}"
+  tags:
+    - user_management

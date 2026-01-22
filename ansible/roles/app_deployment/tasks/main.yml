@@ -1,0 +1,150 @@
+---
+# app_deployment Role - Docker Compose App Deployment
+
+# ============================================================================
+# SECTION 1: Vorbereitung
+# ============================================================================
+
+- name: "Deploy: Definiere Apps basierend auf Profil"
+  ansible.builtin.set_fact:
+    apps_to_deploy: "{{ deployment_profiles[wiz_profile | default('standard')].apps_to_deploy }}"
+  tags:
+    - deploy
+    - apps
+
+- name: "Deploy: Zeige Apps zum Deployment"
+  ansible.builtin.debug:
+    msg: "Apps zum Deployment: {{ apps_to_deploy }}"
+  tags:
+    - deploy
+    - apps
+
+# ============================================================================
+# SECTION 2: Kopiere Docker Compose Templates
+# ============================================================================
+
+- name: "Deploy: Kopiere Docker Compose Templates"
+  block:
+    - name: "Deploy: Erstelle App-Verzeichnis"
+      ansible.builtin.file:
+        path: "/opt/docker-compose/{{ item.key }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      loop: "{{ apps_config | dict2items }}"
+      when: item.key in apps_to_deploy
+
+    - name: "Deploy: Kopiere Docker Compose Dateien"
+      ansible.builtin.template:
+        src: "templates/docker-compose/{{ item.value.template }}"
+        dest: "/opt/docker-compose/{{ item.key }}/docker-compose.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      loop: "{{ apps_config | dict2items }}"
+      when: item.key in apps_to_deploy
+      register: compose_copy
+
+  tags:
+    - deploy
+    - templates
+
+# ============================================================================
+# SECTION 3: Starte Docker Compose Services
+# ============================================================================
+
+- name: "Deploy: Starte Docker Compose Services"
+  block:
+    - name: "Deploy: Starte Apps"
+      ansible.builtin.shell: |
+        cd /opt/docker-compose/{{ item.key }} && \
+        docker compose up -d
+      loop: "{{ apps_config | dict2items }}"
+      when: item.key in apps_to_deploy
+      register: compose_up
+
+    - name: "Deploy: Zeige Deployment-Status"
+      ansible.builtin.debug:
+        msg: "App {{ item.item.key }} gestartet"
+      loop: "{{ compose_up.results }}"
+      when: item.changed
+
+  tags:
+    - deploy
+    - services
+
+# ============================================================================
+# SECTION 4: Validierung
+# ============================================================================
+
+- name: "Deploy: Validiere Docker Compose Services"
+  block:
+    - name: "Deploy: Prüfe Container Status"
+      ansible.builtin.shell: |
+        cd /opt/docker-compose/{{ item.key }} && \
+        docker compose ps
+      loop: "{{ apps_config | dict2items }}"
+      when: item.key in apps_to_deploy
+      register: container_status
+      changed_when: false
+
+    - name: "Deploy: Zeige Container Status"
+      ansible.builtin.debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ container_status.results }}"
+      when: item.stdout is defined
+
+  tags:
+    - deploy
+    - validation
+
+# ============================================================================
+# SECTION 5: Gesundheitsprüfung
+# ============================================================================
+
+- name: "Deploy: Warte auf Service-Startup"
+  ansible.builtin.pause:
+    seconds: 10
+  tags:
+    - deploy
+    - health
+
+- name: "Deploy: Prüfe Service Health"
+  block:
+    - name: "Deploy: Prüfe Ports"
+      ansible.builtin.wait_for:
+        host: localhost
+        port: "{{ item.value.ports[0].split(':')[0] }}"
+        timeout: 30
+      loop: "{{ apps_config | dict2items }}"
+      when: 
+        - item.key in apps_to_deploy
+        - item.value.ports is defined
+      failed_when: false
+      register: port_check
+
+    - name: "Deploy: Zeige Port-Status"
+      ansible.builtin.debug:
+        msg: "Port {{ item.item.value.ports[0].split(':')[0] }} für {{ item.item.key }} ist erreichbar"
+      loop: "{{ port_check.results }}"
+      when: 
+        - item.item.value.ports is defined
+        - not item.failed
+
+  tags:
+    - deploy
+    - health
+
+# ============================================================================
+# SECTION 6: Abschluss
+# ============================================================================
+
+- name: "Deploy: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "App Deployment abgeschlossen"
+      - "Bereitgestellte Apps: {{ apps_to_deploy }}"
+      - "Alle Services laufen"
+  tags:
+    - deploy

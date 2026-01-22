@@ -1,0 +1,51 @@
+---
+# Check Python Dependencies
+# Prüft ob alle notwendigen Python-Pakete installiert sind
+
+- name: Check Python version
+  command: python3 --version
+  register: python_version
+  changed_when: false
+  delegate_to: localhost
+  tags: [preflight, python]
+
+- name: Display Python version
+  debug:
+    msg: "{{ python_version.stdout }}"
+  tags: [preflight, python]
+
+- name: Check if proxmoxer is installed (for Proxmox API)
+  command: python3 -c "import proxmoxer"
+  register: proxmoxer_check
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, python]
+
+- name: Display proxmoxer status
+  debug:
+    msg: "proxmoxer library: {{ 'installed' if proxmoxer_check.rc == 0 else 'not installed' }}"
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, python]
+
+- name: Warn if proxmoxer is not installed
+  debug:
+    msg: "WARNING: proxmoxer library not found. Install with: pip install proxmoxer"
+  when:
+    - not controller_mode | default(false) | bool
+    - proxmoxer_check.rc != 0
+  tags: [preflight, python]
+
+- name: Check if requests is installed
+  command: python3 -c "import requests"
+  register: requests_check
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  tags: [preflight, python]
+
+- name: Display requests status
+  debug:
+    msg: "requests library: {{ 'installed' if requests_check.rc == 0 else 'not installed' }}"
+  tags: [preflight, python]

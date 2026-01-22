@@ -1,0 +1,167 @@
+---
+# qa_smoke Role - QA Smoke Tests und Preflight-Checks
+
+- name: "QA Smoke: Initialisiere QA-Status"
+  ansible.builtin.set_fact:
+    qa_status: green
+    qa_messages: []
+  tags:
+    - qa_smoke
+
+# Preflight Checks
+- name: "QA Preflight: Sudo-Rechte prüfen"
+  ansible.builtin.command:
+    cmd: id -u
+  become: true
+  register: become_check
+  failed_when: false
+  tags:
+    - qa_smoke
+    - preflight
+
+- name: "QA Preflight: Status für Sudo aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: "{{ 'red' if become_check.rc != 0 else qa_status }}"
+    qa_messages: "{{ qa_messages + ['sudo failed'] if become_check.rc != 0 else qa_messages }}"
+  tags:
+    - qa_smoke
+    - preflight
+
+- name: "QA Preflight: Freien Speicher auf / prüfen"
+  ansible.builtin.command:
+    cmd: "df --output=avail -k / | tail -1"
+  register: root_free
+  failed_when: false
+  tags:
+    - qa_smoke
+    - preflight
+
+- name: "QA Preflight: Status für Speicherplatz aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: |
+      {% set free_kb = (root_free.stdout | trim | int) %}
+      {% if free_kb < 512000 %}red{% elif free_kb < 1048576 and qa_status == 'green' %}yellow{% else %}{{ qa_status }}{% endif %}
+    qa_messages: "{{ qa_messages + ['low disk space'] if (root_free.stdout | trim | int) < 1048576 else qa_messages }}"
+  tags:
+    - qa_smoke
+    - preflight
+
+- name: "QA Preflight: Python3 Verfügbarkeit prüfen"
+  ansible.builtin.command:
+    cmd: python3 --version
+  register: python_check
+  failed_when: false
+  tags:
+    - qa_smoke
+    - preflight
+
+- name: "QA Preflight: Status für Python aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: "{{ 'red' if python_check.rc != 0 else qa_status }}"
+    qa_messages: "{{ qa_messages + ['python3 missing'] if python_check.rc != 0 else qa_messages }}"
+  tags:
+    - qa_smoke
+    - preflight
+
+# Post-Deploy Checks
+- name: "QA Post-Deploy: Docker Verfügbarkeit prüfen"
+  ansible.builtin.command:
+    cmd: docker --version
+  register: docker_check
+  failed_when: false
+  tags:
+    - qa_smoke
+    - post_deploy
+
+- name: "QA Post-Deploy: Status für Docker aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: "{{ 'yellow' if (docker_check.rc != 0) and qa_status == 'green' else qa_status }}"
+    qa_messages: "{{ qa_messages + ['docker not available'] if docker_check.rc != 0 else qa_messages }}"
+  tags:
+    - qa_smoke
+    - post_deploy
+
+- name: "QA Post-Deploy: Docker-Netzwerk prüfen"
+  ansible.builtin.command:
+    cmd: "docker network inspect {{ qa_docker_network }}"
+  register: network_check
+  failed_when: false
+  when: docker_check.rc == 0
+  tags:
+    - qa_smoke
+    - post_deploy
+
+- name: "QA Post-Deploy: Status für Docker-Netzwerk aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: "{{ 'yellow' if (network_check is defined and network_check.rc != 0) and qa_status == 'green' else qa_status }}"
+    qa_messages: "{{ qa_messages + ['docker network missing'] if (network_check is defined and network_check.rc != 0) else qa_messages }}"
+  when: docker_check.rc == 0
+  tags:
+    - qa_smoke
+    - post_deploy
+
+- name: "QA Post-Deploy: Container-Status prüfen"
+  ansible.builtin.command:
+    cmd: "docker ps -q -f name={{ item }}"
+  register: container_check
+  loop: "{{ qa_containers }}"
+  when: docker_check.rc == 0 and qa_containers | length > 0
+  failed_when: false
+  tags:
+    - qa_smoke
+    - post_deploy
+
+- name: "QA Post-Deploy: Status für Container aktualisieren"
+  ansible.builtin.set_fact:
+    qa_status: "{{ 'yellow' if (item.rc != 0) and qa_status == 'green' else qa_status }}"
+    qa_messages: "{{ qa_messages + ['container ' + item.item + ' not running'] if (item.rc != 0) else qa_messages }}"
+  loop: "{{ container_check.results }}"
+  when: docker_check.rc == 0 and qa_containers | length > 0
+  tags:
+    - qa_smoke
+    - post_deploy
+
+# Logging und Reporting
+- name: "QA: Log-Verzeichnis erstellen"
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+  tags:
+    - qa_smoke
+    - logging
+
+- name: "QA: QA Smoke Log schreiben"
+  ansible.builtin.copy:
+    dest: "{{ log_dir }}/qa_smoke.log"
+    owner: root
+    mode: '0644'
+    content: |
+      QA Smoke Test Results
+      =====================
+      Status: {{ qa_status }}
+      Messages: {{ qa_messages | join(', ') if qa_messages else 'none' }}
+      Date: {{ ansible_date_time.iso8601 }}
+      
+      Preflight Checks:
+      - Sudo: {{ 'OK' if become_check.rc == 0 else 'FAILED' }}
+      - Disk Space: {{ (root_free.stdout | trim | int / 1024) | round(2) }} MB
+      - Python3: {{ 'OK' if python_check.rc == 0 else 'MISSING' }}
+      
+      Post-Deploy Checks:
+      - Docker: {{ 'OK' if docker_check.rc == 0 else 'NOT AVAILABLE' }}
+  become: true
+  tags:
+    - qa_smoke
+    - logging
+
+- name: "QA: QA Status anzeigen"
+  ansible.builtin.debug:
+    msg:
+      - "=== QA SMOKE TEST RESULTS ==="
+      - "Status: {{ qa_status }}"
+      - "Messages: {{ qa_messages | join(', ') if qa_messages else 'none' }}"
+      - "Log: {{ log_dir }}/qa_smoke.log"
+  tags:
+    - qa_smoke

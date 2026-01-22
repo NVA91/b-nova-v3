@@ -1,0 +1,48 @@
+---
+# Check Storage Availability
+# Prüft verfügbaren Speicherplatz auf dem Zielsystem
+
+- name: Get disk space information
+  shell: df -h / | tail -1 | awk '{print $5}' | sed 's/%//'
+  register: disk_usage
+  changed_when: false
+  tags: [preflight, storage]
+
+- name: Set disk usage fact
+  set_fact:
+    disk_usage_percent: "{{ disk_usage.stdout | int }}"
+  tags: [preflight, storage]
+
+- name: Display disk usage
+  debug:
+    msg: "Root filesystem usage: {{ disk_usage_percent }}%"
+  tags: [preflight, storage]
+
+- name: Warn if disk usage is high
+  debug:
+    msg: "WARNING: Disk usage is {{ disk_usage_percent }}% - consider freeing up space"
+  when: disk_usage_percent | int > 80
+  tags: [preflight, storage]
+
+- name: Fail if disk usage is critical
+  fail:
+    msg: "CRITICAL: Disk usage is {{ disk_usage_percent }}% - not enough space for deployment!"
+  when:
+    - disk_usage_percent | int > 95
+    - strict_storage_check | default(false) | bool
+  tags: [preflight, storage]
+
+- name: Check for required directories
+  stat:
+    path: "{{ item }}"
+  register: required_dirs
+  loop:
+    - /opt
+    - /var/lib/docker
+  tags: [preflight, storage]
+
+- name: Display directory status
+  debug:
+    msg: "{{ item.item }}: {{ 'exists' if item.stat.exists else 'missing' }}"
+  loop: "{{ required_dirs.results }}"
+  tags: [preflight, storage]

@@ -1,0 +1,29 @@
+---
+# project_backup Role - Backup-Management
+
+- name: "Backup: Backup-Verzeichnis erstellen"
+  ansible.builtin.file:
+    path: "{{ backup_base_dir }}/novachris_home"
+    state: directory
+    mode: '0755'
+  become: true
+  tags:
+    - project_backup
+    - backup
+
+- name: "Backup: Backup-Konfiguration"
+  ansible.builtin.debug:
+    msg:
+      - "Backup Base Directory: {{ backup_base_dir }}"
+      - "Backup Enabled: {{ backup_enabled }}"
+      - "Retention Days: {{ backup_retention_days }}"
+  tags:
+    - project_backup
+    - backup
+
+- name: "Backup: Placeholder für Backup-Logik"
+  ansible.builtin.debug:
+    msg: "TODO: Implementiere spezifische Backup-Logik (z.B. rsync, borg, Proxmox Backup Server)"
+  tags:
+    - project_backup
+    - backup

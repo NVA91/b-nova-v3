@@ -1,0 +1,63 @@
+---
+# NOVA v3 - User Management Playbook
+# Verwaltet Benutzerkonten und SSH-Schlüssel auf den Ziel-Hosts
+
+- name: "NOVA v3 - User Management"
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # Admin-Benutzer
+    default_user: "admin_nova"
+    
+    # SSH-Konfiguration
+    ssh_key_path: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
+    ssh_key_type: "ed25519"
+    ssh_port: 22
+    
+    # Sudo-Konfiguration
+    enable_passwordless_sudo: true
+    
+    # Sicherheit
+    disable_password_auth: true
+    disable_root_login: true
+
+  pre_tasks:
+    - name: "Pre-Check: SSH-Schlüssel validieren"
+      ansible.builtin.stat:
+        path: "{{ ssh_key_path }}"
+      delegate_to: localhost
+      register: ssh_key_check
+      failed_when: not ssh_key_check.stat.exists
+      tags:
+        - always
+
+    - name: "Pre-Check: SSH-Schlüssel anzeigen"
+      ansible.builtin.debug:
+        msg: "SSH-Schlüssel gefunden: {{ ssh_key_path }}"
+      tags:
+        - always
+
+  roles:
+    - role: user_management
+      tags:
+        - user_management
+
+  post_tasks:
+    - name: "Post-Check: Benutzer-Informationen sammeln"
+      ansible.builtin.debug:
+        msg:
+          - "Admin-Benutzer: {{ default_user }}"
+          - "SSH-Port: {{ ssh_port }}"
+          - "Passwortloses Sudo: {{ enable_passwordless_sudo }}"
+      tags:
+        - always
+
+    - name: "Post-Check: SSH-Verbindungstest vorbereiten"
+      ansible.builtin.debug:
+        msg:
+          - "Teste die SSH-Verbindung mit:"
+          - "ssh -p {{ ssh_port }} {{ default_user }}@{{ inventory_hostname }}"
+      tags:
+        - always

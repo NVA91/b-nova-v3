@@ -1,0 +1,75 @@
+---
+# NOVA v3 - Docker Setup Playbook
+# Installiert und konfiguriert Docker und Docker Compose
+
+- name: "NOVA v3 - Docker Setup"
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # App-Konfiguration für Docker Compose Verzeichnisse
+    apps_config:
+      nova-v3:
+        enabled: true
+      traefik:
+        enabled: true
+      whisper:
+        enabled: false
+      paperless-ngx:
+        enabled: false
+      n8n:
+        enabled: false
+
+  pre_tasks:
+    - name: "Pre-Check: Betriebssystem validieren"
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == 'Debian'
+        fail_msg: "Diese Rolle unterstützt nur Debian-basierte Systeme"
+      tags:
+        - always
+
+    - name: "Pre-Check: Prüfe ob Docker bereits installiert ist"
+      ansible.builtin.command:
+        cmd: docker --version
+      register: docker_check
+      failed_when: false
+      changed_when: false
+      tags:
+        - always
+
+    - name: "Pre-Check: Docker Status"
+      ansible.builtin.debug:
+        msg: "{{ 'Docker ist bereits installiert' if docker_check.rc == 0 else 'Docker wird installiert' }}"
+      tags:
+        - always
+
+  roles:
+    - role: docker_setup
+      tags:
+        - docker_setup
+
+  post_tasks:
+    - name: "Post-Check: Docker Service Status"
+      ansible.builtin.service_facts:
+      tags:
+        - always
+
+    - name: "Post-Check: Docker Service Informationen"
+      ansible.builtin.debug:
+        msg:
+          - "Docker Service: {{ ansible_facts.services['docker.service'].state }}"
+          - "Docker Enabled: {{ ansible_facts.services['docker.service'].status }}"
+      when: "'docker.service' in ansible_facts.services"
+      tags:
+        - always
+
+    - name: "Post-Check: Neuanmeldung erforderlich"
+      ansible.builtin.debug:
+        msg:
+          - "HINWEIS: Benutzer {{ ansible_user }} wurde zur docker-Gruppe hinzugefügt"
+          - "Eine Neuanmeldung ist erforderlich, damit die Gruppenmitgliedschaft wirksam wird"
+          - "Führen Sie 'newgrp docker' aus oder melden Sie sich neu an"
+      tags:
+        - always

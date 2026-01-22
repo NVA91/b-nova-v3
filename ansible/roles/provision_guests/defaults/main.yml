@@ -1,0 +1,31 @@
+---
+# provision_guests Role - Standardwerte
+
+# Cloud-Init Template Standardwerte
+cloud_init_template_default:
+  template_vmid: 9000
+  template_name: "ubuntu-cloud-template"
+  image_url: "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+  image_path: "/var/lib/vz/template/iso/ubuntu-22.04-cloud.img"
+  memory: 2048
+  disk_size: 32
+
+# VM Standardwerte
+vm_defaults:
+  cores: 2
+  memory: 2048
+  disk_size: 32
+  storage: "local-lvm"
+  start_on_boot: true
+
+# Netzwerk Standardwerte
+network_defaults:
+  bridge: "vmbr0"
+  model: "virtio"
+  firewall: 1
+
+# Cloud-Init Standardwerte
+cloudinit_defaults:
+  user: "ubuntu"
+  password_auth: false
+  pubkey_auth: true

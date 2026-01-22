@@ -1,0 +1,12 @@
+---
+# user_management Role - Standardwerte
+
+# Standard-Benutzer
+default_user: admin_novachris
+
+# SSH-Konfiguration
+ssh_key_type: ed25519
+ssh_port: 22
+
+# Sudo-Konfiguration
+enable_passwordless_sudo: true

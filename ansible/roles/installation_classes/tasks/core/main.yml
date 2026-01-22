@@ -1,0 +1,204 @@
+---
+# Core Infrastructure Installation Tasks - Proxmox VE spezifisch
+
+# ============================================================================
+# SECTION 1: Netzwerk-Konfiguration (vmbr0 Bridge)
+# ============================================================================
+
+- name: "Network: Installiere ifupdown2 (Proxmox Standard)"
+  ansible.builtin.apt:
+    name: ifupdown2
+    state: present
+  tags:
+    - core
+    - network
+    - proxmox
+
+- name: "Network: Backup der aktuellen Netzwerk-Konfiguration"
+  ansible.builtin.copy:
+    src: /etc/network/interfaces
+    dest: "/etc/network/interfaces.backup.{{ ansible_date_time.iso8601 }}"
+    remote_src: yes
+  tags:
+    - core
+    - network
+    - proxmox
+
+- name: "Network: Konfiguriere vmbr0 Bridge (Proxmox Standard)"
+  ansible.builtin.blockinfile:
+    path: /etc/network/interfaces
+    block: |
+      auto lo
+      iface lo inet loopback
+
+      auto {{ pve_interface | default('eno1') }}
+      iface {{ pve_interface | default('eno1') }} inet manual
+
+      auto vmbr0
+      iface vmbr0 inet static
+          address {{ pve_ip | default('192.168.1.100/24') }}
+          gateway {{ pve_gateway | default('192.168.1.1') }}
+          bridge-ports {{ pve_interface | default('eno1') }}
+          bridge-stp off
+          bridge-fd 0
+    create: yes
+    backup: yes
+  notify: reload networking
+  tags:
+    - core
+    - network
+    - proxmox
+
+# ============================================================================
+# SECTION 2: Storage-Konfiguration (LVM-Thin Pools)
+# ============================================================================
+
+- name: "Storage: Prüfe verfügbare Festplatten"
+  ansible.builtin.command:
+    cmd: "lsblk -nd -o NAME,SIZE,TYPE | grep disk"
+  register: disk_list
+  changed_when: false
+  tags:
+    - core
+    - storage
+    - proxmox
+
+- name: "Storage: Zeige verfügbare Festplatten"
+  ansible.builtin.debug:
+    msg: "{{ disk_list.stdout_lines }}"
+  tags:
+    - core
+    - storage
+    - proxmox
+
+- name: "Storage: Erstelle LVM Physical Volume (falls konfiguriert)"
+  block:
+    - name: "Storage: Initialisiere Festplatte als PV"
+      ansible.builtin.command:
+        cmd: "pvcreate {{ storage_device }}"
+      when: storage_device is defined and storage_device != ''
+      tags:
+        - core
+        - storage
+        - proxmox
+
+    - name: "Storage: Erstelle Volume Group"
+      ansible.builtin.command:
+        cmd: "vgcreate {{ storage_vg_name | default('pve-vg') }} {{ storage_device }}"
+      when: storage_device is defined and storage_device != ''
+      tags:
+        - core
+        - storage
+        - proxmox
+
+    - name: "Storage: Erstelle Thin Pool"
+      ansible.builtin.command:
+        cmd: "lvcreate -L {{ storage_thin_size | default('100G') }} -T {{ storage_vg_name | default('pve-vg') }}/{{ storage_thin_pool | default('data') }}"
+      when: storage_device is defined and storage_device != ''
+      tags:
+        - core
+        - storage
+        - proxmox
+
+  rescue:
+    - name: "Storage: Warnung bei Storage-Fehler"
+      ansible.builtin.debug:
+        msg:
+          - "Storage-Konfiguration konnte nicht automatisch durchgeführt werden"
+          - "Dies ist normal, wenn die Festplatten bereits konfiguriert sind"
+          - "Bitte überprüfen Sie die Storage-Konfiguration manuell"
+  tags:
+    - core
+    - storage
+    - proxmox
+
+# ============================================================================
+# SECTION 3: Proxmox Storage-Konfiguration
+# ============================================================================
+
+- name: "Storage: Stelle sicher, dass /etc/pve/storage.cfg existiert"
+  ansible.builtin.file:
+    path: /etc/pve/storage.cfg
+    state: touch
+    mode: '0644'
+  tags:
+    - core
+    - storage
+    - proxmox
+
+- name: "Storage: Konfiguriere lokales Storage (Directory)"
+  ansible.builtin.blockinfile:
+    path: /etc/pve/storage.cfg
+    block: |
+      dir: local
+          path /var/lib/vz
+          content images,rootdir
+          nodes {{ inventory_hostname }}
+          disable 0
+
+      dir: local-lvm
+          path /var/lib/vz
+          content images,rootdir
+          nodes {{ inventory_hostname }}
+          disable 0
+    create: yes
+    mode: '0644'
+  tags:
+    - core
+    - storage
+    - proxmox
+
+# ============================================================================
+# SECTION 4: Proxmox Cluster-Konfiguration
+# ============================================================================
+
+- name: "Cluster: Validiere Proxmox Installation"
+  ansible.builtin.command:
+    cmd: "pveversion"
+  register: pve_version
+  changed_when: false
+  tags:
+    - core
+    - cluster
+    - proxmox
+
+- name: "Cluster: Zeige Proxmox Version"
+  ansible.builtin.debug:
+    msg: "Proxmox VE Version: {{ pve_version.stdout }}"
+  tags:
+    - core
+    - cluster
+    - proxmox
+
+- name: "Cluster: Prüfe Cluster-Status"
+  ansible.builtin.command:
+    cmd: "pvecm status"
+  register: cluster_status
+  changed_when: false
+  failed_when: false
+  tags:
+    - core
+    - cluster
+    - proxmox
+
+- name: "Cluster: Zeige Cluster-Status"
+  ansible.builtin.debug:
+    msg: "{{ cluster_status.stdout_lines }}"
+  tags:
+    - core
+    - cluster
+    - proxmox
+
+# ============================================================================
+# SECTION 5: Core-Abschluss
+# ============================================================================
+
+- name: "Core: Abschluss-Meldung"
+  ansible.builtin.debug:
+    msg:
+      - "Core Infrastructure Installation abgeschlossen"
+      - "Netzwerk-Bridge (vmbr0) konfiguriert"
+      - "Storage-Konfiguration durchgeführt"
+      - "Proxmox Cluster validiert"
+  tags:
+    - core

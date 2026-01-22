@@ -1,0 +1,60 @@
+---
+# NOVA v3 - Installation Classes Playbook
+# Gruppiert Installations- und Konfigurations-Tasks in logische Klassen
+
+- name: "NOVA v3 - Installation Classes"
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    # Installations-Flags (Klassen aktivieren/deaktivieren)
+    do_infra: true   # Core Infrastructure installieren
+    do_apps: true    # Applications installieren
+    do_test: false   # Maintenance & Testing ausführen
+
+  pre_tasks:
+    - name: "Pre-Check: Installations-Flags anzeigen"
+      ansible.builtin.debug:
+        msg:
+          - "Core Infrastructure (do_infra): {{ do_infra }}"
+          - "Applications (do_apps): {{ do_apps }}"
+          - "Maintenance & Testing (do_test): {{ do_test }}"
+      tags:
+        - always
+
+    - name: "Pre-Check: Warnung bei deaktivierten Klassen"
+      ansible.builtin.debug:
+        msg:
+          - "WARNUNG: Nicht alle Installations-Klassen sind aktiviert"
+          - "Aktiviere alle Klassen für eine vollständige Installation"
+      when: not (do_infra and do_apps and do_test)
+      tags:
+        - always
+
+  roles:
+    - role: installation_classes
+      tags:
+        - installation_classes
+
+  post_tasks:
+    - name: "Post-Check: Installations-Zusammenfassung"
+      ansible.builtin.debug:
+        msg:
+          - "Installation Classes abgeschlossen"
+          - "Core Infrastructure: {{ 'Installiert' if do_infra else 'Übersprungen' }}"
+          - "Applications: {{ 'Installiert' if do_apps else 'Übersprungen' }}"
+          - "Maintenance & Testing: {{ 'Ausgeführt' if do_test else 'Übersprungen' }}"
+      tags:
+        - always
+
+    - name: "Post-Check: Nächste Schritte"
+      ansible.builtin.debug:
+        msg:
+          - "Nächste Schritte:"
+          - "1. Überprüfe die Installation mit 'docker ps'"
+          - "2. Überprüfe die Logs mit 'docker compose logs'"
+          - "3. Teste die Services über Traefik"
+      when: do_infra and do_apps
+      tags:
+        - always

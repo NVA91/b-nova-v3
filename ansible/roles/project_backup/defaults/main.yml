@@ -1,0 +1,8 @@
+---
+# project_backup Role - Standardwerte
+
+# Backup-Konfiguration
+backup_base_dir: /mnt/backup
+backup_enabled: true
+backup_retention_days: 30
+backup_schedule: "daily"

@@ -1,0 +1,17 @@
+---
+# Applications Installation Tasks
+
+- name: "Apps: Applikationen-Installation"
+  ansible.builtin.debug:
+    msg: "Applications Installation - Applikationen werden installiert"
+
+# Hier können spezifische App-Tasks hinzugefügt werden, z.B.:
+# - Docker Compose Installation
+# - Service-Deployment
+# - Backup-Tools
+# - Monitoring-Tools
+# - Log-Aggregation
+
+- name: "Apps: Placeholder für zukünftige App-Tasks"
+  ansible.builtin.debug:
+    msg: "TODO: Implementiere spezifische Application-Installation-Tasks"

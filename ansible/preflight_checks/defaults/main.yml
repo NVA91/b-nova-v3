@@ -1,0 +1,28 @@
+---
+# Preflight Checks - Default Variables
+
+# Version checks
+proxmox_version_check: false
+proxmox_version_required: "9.0"
+strict_api_check: false
+
+# Vault checks
+require_vault: false
+vault_password_file: ".vault_pass"
+
+# SSH checks
+require_ssh_key: false
+ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+
+# Storage checks
+enable_storage_checks: true
+strict_storage_check: false
+min_free_space_gb: 10
+
+# Controller mode
+controller_mode: false
+
+# Network checks
+enable_network_checks: true
+check_internet: true
+check_dns: true

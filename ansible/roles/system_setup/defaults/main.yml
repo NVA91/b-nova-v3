@@ -1,0 +1,37 @@
+---
+# system_setup Role - Standardwerte für Proxmox VE
+
+# Erforderliche Pakete (Proxmox VE spezifisch)
+system_setup_packages:
+  - vim
+  - htop
+  - curl
+  - wget
+  - git
+  - net-tools
+  - openssh-client
+  - openssh-server
+  - sudo
+  - python3
+  - python3-pip
+  - proxmox-ve
+  - proxmox-ve-firmware
+  - proxmox-ve-headers
+  - pve-manager
+  - pve-firewall
+  - pve-cluster
+  - ifupdown2
+
+# Systemkonfiguration
+system_timezone: UTC
+system_locale: en_US.UTF-8
+
+# Sicherheit
+enable_firewall: true
+ssh_port: 22
+
+# Logging
+log_dir: /var/log/novachris_home
+
+# Proxmox-spezifisch
+remove_debian_kernel: false  # Nur setzen wenn sicher, dass PVE-Kernel lädt

@@ -1,0 +1,66 @@
+---
+# defaults/main.yml for app_deployment role
+
+# Base-Pfad für alle Docker-Compose Projekte
+compose_base_path: "/opt/docker-compose"
+
+# Logging / Debugging
+app_deployment_debug: false
+
+# Standard Systemd Template (wird von allen Apps genutzt)
+systemd_service_template: "nova_app.service.j2"
+
+# ============================================================================
+# APP KONFIGURATION (Technische Details)
+# ============================================================================
+# Hier definieren wir NICHT, was installiert wird (das macht group_vars),
+# sondern WIE es installiert wird (Ports, Templates).
+
+apps_config:
+  # --- INFRASTRUKTUR ---
+  traefik:
+    template: "traefik.yml.j2"
+    ports: 
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard
+    restart: "always"
+
+  portainer:
+    template: "portainer.yml.j2"
+    ports:
+      - "9000:9000"
+    restart: "always"
+
+  vaultwarden:
+    template: "vaultwarden.yml.j2"
+    ports:
+      - "8880:80" # Mapping auf 8880, damit 80 für Traefik frei bleibt
+    restart: "unless-stopped"
+
+  # --- DOKUMENTE & OFFICE ---
+  paperless-ngx: # Name muss exakt mit deployment_profiles.yml übereinstimmen!
+    template: "paperless.yml.j2"
+    ports:
+      - "8000:8000"
+    restart: "unless-stopped"
+
+  # --- AI & AUTOMATION ---
+  n8n:
+    template: "n8n.yml.j2"
+    ports:
+      - "5678:5678"
+    restart: "always"
+
+  ollama:
+    template: "ollama.yml.j2"
+    ports:
+      - "11434:11434"
+    restart: "always"
+    # Hier könnten wir später GPU-Passthrough Flags hinzufügen
+  
+  whisper:
+    template: "whisper.yml.j2"
+    ports:
+      - "9000:9000"
+    restart: "always"

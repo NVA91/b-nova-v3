@@ -148,3 +148,24 @@
       - "Alle Services laufen"
   tags:
     - deploy
+
+# ============================================================================
+# SECTION 7: System Integration (Autostart)
+# ============================================================================
+
+- name: "Deploy: Installiere Systemd Service für Apps"
+  ansible.builtin.template:
+    src: "templates/nova_app.service.j2"
+    dest: "/etc/systemd/system/{{ item.key }}.service"
+    mode: '0644'
+  loop: "{{ apps_config | dict2items }}"
+  when: item.key in apps_to_deploy
+  notify: reload_systemd
+
+- name: "Deploy: Aktiviere Autostart für Apps"
+  ansible.builtin.systemd:
+    name: "{{ item.key }}"
+    enabled: yes
+    state: started
+  loop: "{{ apps_config | dict2items }}"
+  when: item.key in apps_to_deploy

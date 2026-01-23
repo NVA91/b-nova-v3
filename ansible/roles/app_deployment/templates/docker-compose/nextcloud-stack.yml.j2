@@ -1,0 +1,217 @@
+version: '3.8'
+
+# ==============================================================================
+# Nextcloud Stack
+# Mit PostgreSQL, Redis, Cron und Traefik-Integration
+# ==============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database (optimiert für Nextcloud)
+  # --------------------------------------------------------------------------
+  nextcloud-db:
+    image: postgres:{{ nextcloud_postgres_version | default('15-alpine') }}
+    container_name: nextcloud-db
+    restart: unless-stopped
+    
+    volumes:
+      - nextcloud_db:/var/lib/postgresql/data
+    
+    environment:
+      POSTGRES_DB: "{{ vault_nextcloud_db | default('nextcloud') }}"
+      POSTGRES_USER: "{{ vault_nextcloud_user | default('nextcloud') }}"
+      POSTGRES_PASSWORD: "{{ vault_nextcloud_password }}"
+      
+      # PostgreSQL Performance Tuning
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+    
+    networks:
+      - nextcloud_internal
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ vault_nextcloud_user | default('nextcloud') }}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    labels:
+      - "com.nova-universe.app=nextcloud-db"
+      - "com.nova-universe.backup=true"
+      - "com.nova-universe.backup.priority=high"
+  
+  # --------------------------------------------------------------------------
+  # Redis Cache (für Performance)
+  # --------------------------------------------------------------------------
+  nextcloud-redis:
+    image: redis:{{ nextcloud_redis_version | default('7-alpine') }}
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    
+    command: redis-server --requirepass {{ vault_nextcloud_redis_password }}
+    
+    volumes:
+      - nextcloud_redis:/data
+    
+    networks:
+      - nextcloud_internal
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+    labels:
+      - "com.nova-universe.app=nextcloud-redis"
+      - "com.nova-universe.backup=false"
+  
+  # --------------------------------------------------------------------------
+  # Nextcloud Application
+  # --------------------------------------------------------------------------
+  nextcloud:
+    image: nextcloud:{{ nextcloud_version | default('latest') }}
+    container_name: nextcloud
+    restart: unless-stopped
+    
+    ports:
+      - "{{ nextcloud_port | default('8080') }}:80"
+    
+    volumes:
+      # Nextcloud Data
+      - nextcloud_data:/var/www/html
+      - nextcloud_config:/var/www/html/config
+      - nextcloud_custom_apps:/var/www/html/custom_apps
+      
+      # User Data (optional external storage)
+      {% if nextcloud_data_path is defined %}
+      - {{ nextcloud_data_path }}:/var/www/html/data
+      {% else %}
+      - nextcloud_user_data:/var/www/html/data
+      {% endif %}
+    
+    environment:
+      # Database Configuration
+      POSTGRES_HOST: nextcloud-db
+      POSTGRES_DB: "{{ vault_nextcloud_db | default('nextcloud') }}"
+      POSTGRES_USER: "{{ vault_nextcloud_user | default('nextcloud') }}"
+      POSTGRES_PASSWORD: "{{ vault_nextcloud_password }}"
+      
+      # Redis Configuration
+      REDIS_HOST: nextcloud-redis
+      REDIS_HOST_PASSWORD: "{{ vault_nextcloud_redis_password }}"
+      
+      # Nextcloud Configuration
+      NEXTCLOUD_ADMIN_USER: "{{ vault_nextcloud_admin_user | default('admin') }}"
+      NEXTCLOUD_ADMIN_PASSWORD: "{{ vault_nextcloud_admin_password }}"
+      NEXTCLOUD_TRUSTED_DOMAINS: "{{ nextcloud_trusted_domains | default('cloud.' + domain) }}"
+      OVERWRITEPROTOCOL: "{{ nextcloud_protocol | default('https') }}"
+      OVERWRITEHOST: "{{ nextcloud_host | default('cloud.' + domain) }}"
+      OVERWRITECLIURL: "{{ nextcloud_url | default('https://cloud.' + domain) }}"
+      
+      # PHP Configuration
+      PHP_MEMORY_LIMIT: "{{ nextcloud_php_memory | default('512M') }}"
+      PHP_UPLOAD_LIMIT: "{{ nextcloud_upload_limit | default('10G') }}"
+      
+      # Timezone
+      TZ: "{{ timezone | default('Europe/Berlin') }}"
+    
+    depends_on:
+      - nextcloud-db
+      - nextcloud-redis
+    
+    networks:
+      - nextcloud_internal
+      - app_network
+    
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          cpus: '{{ nextcloud_cpu_limit | default("2.0") }}'
+          memory: {{ nextcloud_memory_limit | default('2G') }}
+        reservations:
+          cpus: '{{ nextcloud_cpu_reservation | default("0.5") }}'
+          memory: {{ nextcloud_memory_reservation | default('512M') }}
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    labels:
+      # Traefik Labels
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`cloud.{{ domain }}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.tls.certresolver=letsencrypt"
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+      
+      # Nextcloud-specific Traefik Middlewares
+      - "traefik.http.middlewares.nextcloud-caldav.redirectregex.permanent=true"
+      - "traefik.http.middlewares.nextcloud-caldav.redirectregex.regex=^https://(.*)/.well-known/(card|cal)dav"
+      - "traefik.http.middlewares.nextcloud-caldav.redirectregex.replacement=https://$${1}/remote.php/dav/"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-caldav"
+      
+      # Nova-Universe Labels
+      - "com.nova-universe.app=nextcloud"
+      - "com.nova-universe.version={{ nextcloud_version | default('latest') }}"
+      - "com.nova-universe.backup=true"
+      - "com.nova-universe.backup.volumes=data,config,custom_apps"
+      - "com.nova-universe.backup.priority=high"
+  
+  # --------------------------------------------------------------------------
+  # Nextcloud Cron (Background Jobs)
+  # --------------------------------------------------------------------------
+  nextcloud-cron:
+    image: nextcloud:{{ nextcloud_version | default('latest') }}
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    
+    volumes:
+      - nextcloud_data:/var/www/html
+      - nextcloud_config:/var/www/html/config
+      - nextcloud_custom_apps:/var/www/html/custom_apps
+      {% if nextcloud_data_path is defined %}
+      - {{ nextcloud_data_path }}:/var/www/html/data
+      {% else %}
+      - nextcloud_user_data:/var/www/html/data
+      {% endif %}
+    
+    entrypoint: /cron.sh
+    
+    depends_on:
+      - nextcloud-db
+      - nextcloud-redis
+    
+    networks:
+      - nextcloud_internal
+    
+    labels:
+      - "com.nova-universe.app=nextcloud-cron"
+      - "com.nova-universe.backup=false"
+
+volumes:
+  nextcloud_db:
+    driver: local
+  nextcloud_redis:
+    driver: local
+  nextcloud_data:
+    driver: local
+  nextcloud_config:
+    driver: local
+  nextcloud_custom_apps:
+    driver: local
+  {% if nextcloud_data_path is not defined %}
+  nextcloud_user_data:
+    driver: local
+  {% endif %}
+
+networks:
+  nextcloud_internal:
+    driver: bridge
+  app_network:
+    external: true
+

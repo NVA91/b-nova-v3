@@ -1,0 +1,129 @@
+version: '3.8'
+
+# ==============================================================================
+# NOVA v3: Paperless-ngx Stack (Enhanced)
+# ==============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Redis Broker
+  # --------------------------------------------------------------------------
+  broker:
+    image: redis:7-alpine
+    container_name: paperless_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Database
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: paperless_db
+    restart: unless-stopped
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: "{{ vault_paperless_db | default('paperless') }}"
+      POSTGRES_USER: "{{ vault_paperless_user | default('paperless') }}"
+      POSTGRES_PASSWORD: "{{ vault_paperless_password | default('paperless') }}"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ vault_paperless_user | default('paperless') }}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # --------------------------------------------------------------------------
+  # Gotenberg (PDF Conversion)
+  # --------------------------------------------------------------------------
+  gotenberg:
+    image: gotenberg/gotenberg:7.10
+    container_name: paperless_gotenberg
+    restart: unless-stopped
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+      - "--chromium-disable-routes=true"
+    networks:
+      - internal
+
+  # --------------------------------------------------------------------------
+  # Apache Tika (Text Extraction)
+  # --------------------------------------------------------------------------
+  tika:
+    image: apache/tika:latest
+    container_name: paperless_tika
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # --------------------------------------------------------------------------
+  # Main App
+  # --------------------------------------------------------------------------
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+      - gotenberg
+      - tika
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/usr/src/paperless/data
+      - ./media:/usr/src/paperless/media
+      - ./export:/usr/src/paperless/export
+      - ./consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBUSER: "{{ vault_paperless_user | default('paperless') }}"
+      PAPERLESS_DBPASS: "{{ vault_paperless_password | default('paperless') }}"
+      PAPERLESS_URL: "https://paperless.{{ domain_name | default('local.test') }}"
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.{{ domain_name | default('local.test') }}"
+      PAPERLESS_SECRET_KEY: "{{ vault_paperless_secret | default('change_me_in_production_please') }}"
+      
+      # Integration
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+      
+      # User
+      PAPERLESS_ADMIN_USER: "{{ vault_paperless_admin | default('admin') }}"
+      PAPERLESS_ADMIN_PASSWORD: "{{ vault_paperless_admin_pw | default('admin') }}"
+      
+      # OCR Settings (Standard)
+      PAPERLESS_OCR_LANGUAGE: "deu+eng"
+      
+    networks:
+      - internal
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperless.rule=Host(`paperless.{{ domain_name | default('local.test') }}`)"
+      - "traefik.http.routers.paperless.entrypoints=websecure"
+      - "traefik.http.routers.paperless.tls=true"
+      - "traefik.http.routers.paperless.tls.certresolver=letsencrypt"
+      - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+
+volumes:
+  redis_data:
+  pg_data:
+
+networks:
+  internal:
+  proxy:
+    external: true

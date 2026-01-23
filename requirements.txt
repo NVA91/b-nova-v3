@@ -1,0 +1,103 @@
+# ============================================================================
+# Python Requirements for b-nova-v3 Ansible Project
+# ============================================================================
+
+# Ansible Core
+ansible>=2.14.0,<2.18.0
+ansible-core>=2.14.0,<2.18.0
+
+# Ansible Lint
+ansible-lint>=6.22.0
+
+# Ansible Collections (required for linting)
+ansible-compat>=4.1.0
+
+# YAML Processing
+ruamel.yaml>=0.17.0
+pyyaml>=6.0
+
+# Jinja2 (for template validation)
+jinja2>=3.1.0
+
+# Rich (for colored output)
+rich>=13.0.0
+
+# Packaging (for version checks)
+packaging>=23.0
+
+# JSON Schema (for validation)
+jsonschema>=4.17.0
+
+# ============================================================================
+# Proxmox-Specific Dependencies
+# ============================================================================
+
+# Proxmox API Client (optional, for advanced automation)
+proxmoxer>=2.0.0
+requests>=2.31.0
+
+# ============================================================================
+# Testing and Validation
+# ============================================================================
+
+# Molecule (for testing Ansible roles)
+molecule>=6.0.0
+molecule-plugins[docker]>=23.5.0
+
+# Pytest (for unit tests)
+pytest>=7.4.0
+pytest-ansible>=4.1.0
+
+# ============================================================================
+# Code Quality
+# ============================================================================
+
+# Yamllint (YAML linting)
+yamllint>=1.32.0
+
+# Black (Python code formatting, if using custom modules)
+black>=23.0.0
+
+# Flake8 (Python linting, if using custom modules)
+flake8>=6.0.0
+
+# ============================================================================
+# Documentation
+# ============================================================================
+
+# Sphinx (for documentation generation)
+sphinx>=7.0.0
+sphinx-rtd-theme>=1.3.0
+
+# ============================================================================
+# Utilities
+# ============================================================================
+
+# Colorama (for colored terminal output on Windows/WSL)
+colorama>=0.4.6
+
+# Tabulate (for formatted output)
+tabulate>=0.9.0
+
+# ============================================================================
+# NOTES
+# ============================================================================
+
+# Installation:
+#   cd ~/projekte/3-b-nova-V3
+#   python3 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+
+# Update dependencies:
+#   pip install --upgrade -r requirements.txt
+
+# Freeze current versions:
+#   pip freeze > requirements-frozen.txt
+
+# For development (with all optional dependencies):
+#   pip install -r requirements.txt
+#   pip install ansible-dev-tools
+
+# For production (minimal):
+#   pip install ansible ansible-lint

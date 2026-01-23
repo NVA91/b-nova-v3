@@ -1,0 +1,31 @@
+---
+# Proxmox Server (Mini-PC mit eGPU)
+
+ansible_host: 192.168.1.100
+ansible_user: root
+
+# Hardware-Spezifikation
+hardware_profile: "server"
+has_egpu: true
+has_npu: true
+
+# Netzwerk-Konfiguration
+primary_nic_mac: "XX:XX:XX:XX:XX:XX"  # To be determined
+secondary_nic_mac: "YY:YY:YY:YY:YY:YY"  # To be determined
+
+# GPU-Konfiguration
+gpu_passthrough_enabled: true
+gpu_vm_id: 100  # VM-ID für GPU-Passthrough
+
+# Storage-Konfiguration
+system_disk: "/dev/nvme0n1"
+storage_disk: "/dev/nvme1n1"
+zfs_enabled: true
+zfs_arc_max: "8G"
+
+# Kernel-Parameter
+kernel_params:
+  - "amd_iommu=on"
+  - "iommu=pt"
+  - "pcie_acs_override=downstream,multifunction"
+  - "video=efifb:off"

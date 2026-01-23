@@ -1,56 +1,200 @@
 ---
-# Preflight Checks - Haupttasks
-# Führt alle notwendigen Checks vor dem Deployment durch
+# preflight_checks Role - Hardware-Validierung vor Rollout
 
-- name: Display preflight check banner
-  debug:
-    msg: |
-      ╔════════════════════════════════════════════════════════════════╗
-      ║  Preflight Checks - Nova Universe Control Center              ║
-      ╚════════════════════════════════════════════════════════════════╝
+- name: "Pre-Flight: Ansible Facts sammeln"
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+      - devices
+  tags:
+    - always
+    - preflight
 
-- name: Check if running in controller mode
-  set_fact:
-    is_controller_mode: "{{ controller_mode | default(false) | bool }}"
-  tags: [always]
+- name: "Pre-Flight: Anzahl der NVMe-SSDs prüfen"
+  ansible.builtin.shell:
+    cmd: "lsblk -d -o NAME,TYPE | grep nvme | wc -l"
+  register: nvme_count
+  changed_when: false
+  tags:
+    - always
+    - preflight
 
-- name: Check Proxmox version (skip in controller mode)
-  include_tasks: check_proxmox_version.yml
-  when:
-    - not is_controller_mode
-    - proxmox_version_check | default(false) | bool
-  tags: [preflight, version]
+- name: "Pre-Flight: Validierung - 3 NVMe-SSDs erforderlich"
+  ansible.builtin.assert:
+    that:
+      - nvme_count.stdout | int == 3
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: Falsche Anzahl NVMe-SSDs!
+      
+      Erwartet: 3 SSDs
+      Gefunden: {{ nvme_count.stdout }}
+      
+      Erwartete Konfiguration:
+        - /dev/nvme0n1: 2TB WD Black (VM Storage)
+        - /dev/nvme1n1: 2TB Storage SSD (General Storage)
+        - /dev/nvme2n1: 1TB System SSD (Proxmox/Boot)
+      
+      Bitte Hardware prüfen und erneut versuchen!
+    success_msg: "✅ Storage-Validierung erfolgreich: 3 NVMe-SSDs gefunden"
+  tags:
+    - always
+    - preflight
 
-- name: Check Ansible Vault availability
-  include_tasks: check_vault.yml
-  when: require_vault | default(false) | bool
-  tags: [preflight, vault]
+- name: "Pre-Flight: NVMe-Größen ermitteln"
+  ansible.builtin.shell:
+    cmd: "lsblk -d -o NAME,SIZE | grep nvme"
+  register: nvme_sizes
+  changed_when: false
+  tags:
+    - always
+    - preflight
 
-- name: Check SSH keys
-  include_tasks: check_ssh_keys.yml
-  when: require_ssh_key | default(false) | bool
-  tags: [preflight, ssh]
+- name: "Pre-Flight: NVMe-Größen anzeigen"
+  ansible.builtin.debug:
+    msg: "{{ nvme_sizes.stdout_lines }}"
+  tags:
+    - always
+    - preflight
 
-- name: Check network connectivity
-  include_tasks: check_network.yml
-  when: not is_controller_mode
-  tags: [preflight, network]
+- name: "Pre-Flight: Validierung - Storage-Größen prüfen"
+  ansible.builtin.assert:
+    that:
+      - nvme_sizes.stdout is search('2T') or nvme_sizes.stdout is search('1.8T')
+      - nvme_sizes.stdout is search('1T') or nvme_sizes.stdout is search('931G')
+    fail_msg: |
+      ⚠️ WARNUNG: Storage-Größen stimmen nicht mit erwarteter Konfiguration überein!
+      
+      Gefundene SSDs:
+      {{ nvme_sizes.stdout_lines | join('\n') }}
+      
+      Bitte manuell prüfen, ob die Zuordnung korrekt ist:
+        - 2x 2TB SSDs (VM + Storage)
+        - 1x 1TB SSD (System)
+    success_msg: "✅ Storage-Größen validiert"
+  tags:
+    - always
+    - preflight
 
-- name: Check storage availability
-  include_tasks: check_storage.yml
-  when:
-    - not is_controller_mode
-    - enable_storage_checks | default(true) | bool
-  tags: [preflight, storage]
+- name: "Pre-Flight: eGPU-Präsenz prüfen"
+  ansible.builtin.shell:
+    cmd: "lspci | grep -i nvidia"
+  register: egpu_check
+  failed_when: false
+  changed_when: false
+  when: nova_hardware.gpu.egpu.enabled | default(false)
+  tags:
+    - always
+    - preflight
 
-- name: Check Python dependencies
-  include_tasks: check_python_deps.yml
-  tags: [preflight, python]
+- name: "Pre-Flight: Validierung - eGPU erforderlich"
+  ansible.builtin.assert:
+    that:
+      - egpu_check.rc == 0
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: eGPU nicht gefunden!
+      
+      Erwartete Hardware: NVIDIA RTX 5060 Ti (via OCuLink)
+      
+      Mögliche Ursachen:
+        - OCuLink-Kabel nicht angeschlossen
+        - eGPU-Dock ausgeschaltet
+        - BIOS-Einstellungen falsch (PCIe-Hotplug deaktiviert)
+      
+      Bitte Hardware prüfen und erneut versuchen!
+    success_msg: "✅ eGPU gefunden: {{ egpu_check.stdout }}"
+  when: nova_hardware.gpu.egpu.enabled | default(false)
+  tags:
+    - always
+    - preflight
 
-- name: Display preflight check summary
-  debug:
-    msg: |
-      ╔════════════════════════════════════════════════════════════════╗
-      ║  All preflight checks passed! ✓                               ║
-      ╚════════════════════════════════════════════════════════════════╝
-  tags: [always]
+- name: "Pre-Flight: NPU-Präsenz prüfen"
+  ansible.builtin.shell:
+    cmd: "lspci | grep -i 1022:1502"
+  register: npu_check
+  failed_when: false
+  changed_when: false
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - NPU erforderlich"
+  ansible.builtin.assert:
+    that:
+      - npu_check.rc == 0
+    fail_msg: |
+      ⚠️ WARNUNG: NPU nicht gefunden!
+      
+      Erwartete Hardware: AMD XDNA NPU (PCI-ID 1022:1502)
+      
+      Mögliche Ursachen:
+        - BIOS-Einstellung deaktiviert NPU
+        - Kernel zu alt (< 6.8)
+        - NPU-Treiber nicht geladen
+      
+      NPU ist optional, Rollout wird fortgesetzt.
+    success_msg: "✅ NPU gefunden: {{ npu_check.stdout }}"
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Kernel-Version prüfen"
+  ansible.builtin.shell:
+    cmd: "uname -r"
+  register: kernel_version
+  changed_when: false
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - Kernel-Version für NPU"
+  ansible.builtin.assert:
+    that:
+      - kernel_version.stdout is version('6.8', '>=')
+    fail_msg: |
+      ⚠️ WARNUNG: Kernel-Version zu alt für NPU-Support!
+      
+      Aktuelle Version: {{ kernel_version.stdout }}
+      Erforderlich: >= 6.8
+      
+      NPU wird nicht verfügbar sein. Bitte Kernel aktualisieren.
+    success_msg: "✅ Kernel-Version ausreichend: {{ kernel_version.stdout }}"
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: RAM-Größe prüfen"
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= 30720  # 30 GB minimum
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: Nicht genug RAM!
+      
+      Gefunden: {{ ansible_memtotal_mb }} MB
+      Erforderlich: >= 32 GB (30720 MB)
+      
+      ZFS ARC und Docker benötigen mindestens 32 GB RAM!
+    success_msg: "✅ RAM ausreichend: {{ ansible_memtotal_mb }} MB"
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Zusammenfassung"
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "✅ PRE-FLIGHT-CHECKS ERFOLGREICH"
+      - "========================================="
+      - "Storage: 3 NVMe-SSDs gefunden"
+      - "RAM: {{ ansible_memtotal_mb }} MB"
+      - "Kernel: {{ kernel_version.stdout }}"
+      - "eGPU: {{ 'Gefunden' if egpu_check.rc == 0 else 'Nicht gefunden' }}"
+      - "NPU: {{ 'Gefunden' if npu_check.rc == 0 else 'Nicht gefunden' }}"
+      - "========================================="
+      - "Rollout kann fortgesetzt werden."
+      - "========================================="
+  tags:
+    - always
+    - preflight

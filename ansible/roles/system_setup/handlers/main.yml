@@ -24,3 +24,8 @@
     name: pve-firewall
     state: restarted
   listen: "restart pve-firewall"
+
+- name: update_grub
+  ansible.builtin.command:
+    cmd: update-grub
+  listen: update_grubs

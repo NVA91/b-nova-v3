@@ -43,3 +43,21 @@
     - name: Display Samba status
       ansible.builtin.debug:
         msg: "Samba server configured successfully. Access shares at \\\\{{ ansible_hostname }}\\"
+
+
+- name: "NOVA v3 - System Setup"
+  hosts: proxmox-server
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: "Pre-Flight: Hardware-Validierung"
+      ansible.builtin.include_role:
+        name: preflight_checks
+      tags:
+        - always
+
+  roles:
+    - role: system_setup
+      tags:
+        - system_setup

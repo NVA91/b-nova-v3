@@ -1,0 +1,7 @@
+# Hardware-Spezifikation für NOVA V3
+hardware_profile: "server"
+has_egpu: true
+has_npu: true
+gpu_passthrough_enabled: true
+gpu_vm_id: 100
+zfs_enabled: true

@@ -1,0 +1,37 @@
+---
+# network_persistence Role - Persistente Netzwerk-Namen via systemd.link
+
+- name: "Network: MAC-Adressen der NICs ermitteln"
+  ansible.builtin.setup:
+    filter: ansible_interfaces
+  tags:
+    - network_persistence
+
+- name: "Network: systemd.link-File für primäre NIC erstellen"
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/10-persistent-net.link
+    content: |
+      [Match]
+      MACAddress={{ ansible_default_ipv4.macaddress }}
+      
+      [Link]
+      Name=eno1
+    mode: '0644'
+  notify: update_initramfs
+  tags:
+    - network_persistence
+
+- name: "Network: systemd.link-File für sekundäre NIC erstellen"
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/11-persistent-net2.link
+    content: |
+      [Match]
+      MACAddress={{ secondary_nic_mac | default('') }}
+      
+      [Link]
+      Name=eno2
+    mode: '0644'
+  when: secondary_nic_mac is defined
+  notify: update_initramfs
+  tags:
+    - network_persistence

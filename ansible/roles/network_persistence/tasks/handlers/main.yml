@@ -1,0 +1,7 @@
+# ansible/roles/network_persistence/handlers/main.yml
+
+---
+- name: update_initramfs
+  ansible.builtin.command:
+    cmd: update-initramfs -u
+  listen: update_initramfs

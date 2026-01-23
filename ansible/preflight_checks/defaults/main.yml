@@ -3,7 +3,7 @@
 
 # Version checks
 proxmox_version_check: false
-proxmox_version_required: "9.0"
+proxmox_version_required: "9.1"
 strict_api_check: false
 
 # Vault checks
@@ -12,7 +12,7 @@ vault_password_file: ".vault_pass"
 
 # SSH checks
 require_ssh_key: false
-ansible_ssh_private_key_file: "~/.ssh/id_ed25519"
+ansible_ssh_private_key_file: ""
 
 # Storage checks
 enable_storage_checks: true

@@ -4,24 +4,24 @@
 
 - name: "NOVA v3 - System Setup"
   hosts: proxmox_servers
-  become: yes
-  gather_facts: yes
+  become: true
+  gather_facts: true
 
   vars:
     # System-Konfiguration
     system_timezone: "Europe/Berlin"
     system_locale: "de_DE.UTF-8"
-    
+
     # Firewall-Konfiguration
     enable_firewall: true
     ssh_port: 22
-    
+
     # Logging
     log_dir: "/var/log/nova_v3"
-    
+
     # Kernel-Management
     remove_debian_kernel: false
-    
+
     # Pakete für System-Setup
     system_setup_packages:
       - apt-transport-https
@@ -60,16 +60,6 @@
         - system_setup
 
   post_tasks:
-    - name: "Post-Check: System-Informationen sammeln"
-      ansible.builtin.debug:
-        msg:
-          - "Hostname: {{ ansible_hostname }}"
-          - "Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}"
-          - "Kernel: {{ ansible_kernel }}"
-          - "Zeitzone: {{ system_timezone }}"
-      tags:
-        - always
-
     - name: "Post-Check: Reboot erforderlich?"
       ansible.builtin.stat:
         path: /var/run/reboot-required
@@ -81,7 +71,17 @@
       ansible.builtin.debug:
         msg:
           - "WARNUNG: Ein Reboot ist erforderlich!"
-          - "Führen Sie 'ansible-playbook reboot.yml' aus oder rebooten Sie manuell."
+          - "Führen Sie 'ansible-playbook playbooks/system_setup.yml -e reboot_now=true' aus"
+          - "um den Server neu zu starten."
       when: reboot_required.stat.exists
+      tags:
+        - always
+
+    - name: "Post-Check: Reboot durchführen (optional)"
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when:
+        - reboot_required.stat.exists
+        - reboot_now | default(false) | bool
       tags:
         - always

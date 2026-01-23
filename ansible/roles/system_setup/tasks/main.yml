@@ -79,6 +79,89 @@
     - network
 
 # ============================================================================
+# SECTION 2.5: Storage-Validierung und ZFS-Setup
+# ============================================================================
+
+- name: "Storage: Prüfe ob alle 3 NVMe-SSDs vorhanden sind"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: nvme_devices
+  loop:
+    - "/dev/nvme0n1"  # VM Storage
+    - "/dev/nvme1n1"  # General Storage
+    - "/dev/nvme2n1"  # System
+  tags:
+    - system_setup
+    - storage
+
+- name: "Storage: Validierung - Alle SSDs müssen vorhanden sein"
+  ansible.builtin.assert:
+    that:
+      - nvme_devices.results | selectattr('stat.exists') | list | length == 3
+    fail_msg: |
+      ❌ FEHLER: Nicht alle 3 NVMe-SSDs gefunden!
+      Bitte Pre-Flight-Checks ausführen.
+  tags:
+    - system_setup
+    - storage
+
+- name: "Storage: ZFS-Tools installieren"
+  ansible.builtin.apt:
+    name:
+      - zfsutils-linux
+      - zfs-dkms
+    state: present
+  when: ansible_os_family == 'Debian'
+  tags:
+    - system_setup
+    - storage
+    - zfs
+
+- name: "Storage: ZFS-Pool für VMs erstellen (vmpool)"
+  ansible.builtin.command:
+    cmd: "zpool create -f vmpool /dev/nvme0n1"
+  args:
+    creates: "/vmpool"
+  when: nova_hardware.spec.storage.vm_disk.filesystem == 'zfs'
+  tags:
+    - system_setup
+    - storage
+    - zfs
+
+- name: "Storage: ZFS-Pool für Storage erstellen (tank)"
+  ansible.builtin.command:
+    cmd: "zpool create -f tank /dev/nvme1n1"
+  args:
+    creates: "/tank"
+  when: nova_hardware.spec.storage.storage_disk.filesystem == 'zfs'
+  tags:
+    - system_setup
+    - storage
+    - zfs
+
+- name: "Storage: ZFS ARC-Limit setzen (vmpool)"
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/zfs.conf
+    line: "options zfs zfs_arc_max={{ nova_hardware.spec.storage.vm_disk.zfs_arc_max | regex_replace(' GB', '') | int * 1024 * 1024 * 1024 }}"
+    create: yes
+  when: nova_hardware.spec.storage.vm_disk.filesystem == 'zfs'
+  tags:
+    - system_setup
+    - storage
+    - zfs
+
+- name: "Storage: ZFS ARC-Limit setzen (tank)"
+  ansible.builtin.lineinfile:
+    path: /etc/modprobe.d/zfs.conf
+    line: "options zfs zfs_arc_max={{ nova_hardware.spec.storage.storage_disk.zfs_arc_max | regex_replace(' GB', '') | int * 1024 * 1024 * 1024 }}"
+    create: yes
+  when: nova_hardware.spec.storage.storage_disk.filesystem == 'zfs'
+  tags:
+    - system_setup
+    - storage
+    - zfs
+
+# ============================================================================
 # SECTION 3: Kernel und Reboot Management
 # ============================================================================
 
@@ -117,6 +200,60 @@
     - proxmox
 
 # ============================================================================
+# SECTION 3.5: Kernel-Parameter für GPU/NPU-Passthrough
+# ============================================================================
+
+- name: "Kernel: IOMMU-Parameter für AMD-Vi setzen"
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet amd_iommu=on iommu=pt pcie_acs_override=downstream,multifunction video=efifb:off"'
+    backup: yes
+  notify: update_grub
+  tags:
+    - system_setup
+    - kernel
+    - iommu
+    - gpu_passthrough
+
+- name: "Kernel: VFIO-Module für GPU-Passthrough laden"
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/vfio.conf
+    content: |
+      vfio
+      vfio_iommu_type1
+      vfio_pci
+      vfio_virqfd
+    mode: '0644'
+  tags:
+    - system_setup
+    - kernel
+    - gpu_passthrough
+
+- name: "Kernel: NVIDIA-Treiber blacklisten (für Passthrough)"
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/blacklist-nvidia.conf
+    content: |
+      blacklist nouveau
+      blacklist nvidia
+      blacklist nvidia_drm
+      blacklist nvidia_modeset
+    mode: '0644'
+  when: nova_hardware.gpu.egpu.enabled | default(false)
+  tags:
+    - system_setup
+    - kernel
+    - gpu_passthrough
+
+- name: "Kernel: initramfs aktualisieren"
+  ansible.builtin.command:
+    cmd: update-initramfs -u
+  when: initramfs_needs_update | default(false)
+  tags:
+    - system_setup
+    - kernel
+
+# ============================================================================
 # SECTION 4: Systemkonfiguration
 # ============================================================================
 
@@ -128,8 +265,11 @@
     - configuration
 
 - name: "System: Locale konfigurieren"
-  ansible.builtin.command:
-    cmd: "update-locale LANG={{ system_locale | default('en_US.UTF-8') }}"
+  ansible.builtin.lineinfile:
+    path: /etc/default/locale
+    regexp: '^LANG='
+    line: 'LANG={{ system_locale | default("en_US.UTF-8") }}'
+    create: yes
   when: ansible_os_family == 'Debian'
   tags:
     - system_setup

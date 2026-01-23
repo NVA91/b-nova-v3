@@ -1,0 +1,47 @@
+---
+# gpu_hookscript Role - Dynamisches GPU-Passthrough
+
+- name: "Hookscript: Verzeichnis erstellen"
+  ansible.builtin.file:
+    path: /var/lib/vz/snippets
+    state: directory
+    mode: '0755'
+  tags:
+    - gpu_hookscript
+
+- name: "Hookscript: GPU-Passthrough-Script erstellen"
+  ansible.builtin.copy:
+    dest: /var/lib/vz/snippets/gpu-hookscript.pl
+    content: |
+      #!/usr/bin/perl
+      use strict;
+      use warnings;
+      
+      my $vmid = shift;
+      my $phase = shift;
+      
+      if ($phase eq 'pre-start') {
+          # Unbind GPU from host
+          system("echo '0000:XX:00.0' > /sys/bus/pci/drivers/nvidia/unbind");
+          system("echo 'vfio-pci' > /sys/bus/pci/devices/0000:XX:00.0/driver_override");
+          system("echo '0000:XX:00.0' > /sys/bus/pci/drivers/vfio-pci/bind");
+      } elsif ($phase eq 'post-stop') {
+          # Rebind GPU to host
+          system("echo '0000:XX:00.0' > /sys/bus/pci/drivers/vfio-pci/unbind");
+          system("echo '' > /sys/bus/pci/devices/0000:XX:00.0/driver_override");
+          system("echo '0000:XX:00.0' > /sys/bus/pci/drivers/nvidia/bind");
+      }
+      
+      exit(0);
+    mode: '0755'
+  tags:
+    - gpu_hookscript
+
+- name: "Hookscript: VM-Konfiguration anpassen"
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/qemu-server/{{ gpu_vm_id }}.conf"
+    line: "hookscript: local:snippets/gpu-hookscript.pl"
+    create: no
+  when: gpu_vm_id is defined
+  tags:
+    - gpu_hookscript

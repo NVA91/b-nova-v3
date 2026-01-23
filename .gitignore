@@ -43,3 +43,9 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# Ansible specific
+*.retry
+ansible/inventory/hosts.yml
+ansible/inventory/hosts.ini
+.ansible-lint

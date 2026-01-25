@@ -23,3 +23,10 @@ services:
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
+  ansible:
+    image: ansible/ansible:latest
+    container_name: ansible-container
+    volumes:
+      - ./ansible:/ansible
+    working_dir: /ansible
+    command: ansible-playbook ansible/site.yml -i ansible/inventory/hosts.yml -l pve01 --check

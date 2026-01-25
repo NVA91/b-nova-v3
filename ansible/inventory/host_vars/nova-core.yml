@@ -29,3 +29,6 @@ kernel_params:
   - "iommu=pt"
   - "pcie_acs_override=downstream,multifunction"
   - "video=efifb:off"
+
+# Ansible Playbook Ausführung
+ansible_playbook_command: "ansible-playbook ansible/site.yml -i ansible/inventory/hosts.yml -l pve01 --check"

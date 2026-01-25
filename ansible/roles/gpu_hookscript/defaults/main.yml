@@ -1,0 +1,20 @@
+---
+# GPU Hookscript defaults
+#
+# Example (GPU + HDMI-Audio):
+# gpu_pci_ids:
+#   - "0000:01:00.0"
+#   - "0000:01:00.1"
+
+# List of PCI device IDs to rebind between host driver and vfio-pci.
+# If empty/undefined, the role will skip installing the hookscript.
+gpu_pci_ids: []
+
+# Host driver to bind back to after VM stop.
+gpu_host_driver: nvidia
+
+# VFIO driver used for passthrough.
+gpu_vfio_driver: vfio-pci
+
+# Optional logfile path on the Proxmox host.
+gpu_hookscript_log: /var/log/pve-gpu-hookscript.log

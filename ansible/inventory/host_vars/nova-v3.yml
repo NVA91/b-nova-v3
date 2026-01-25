@@ -1,0 +1,17 @@
+hostname: pve01
+proxmox_hostname: pve01
+
+# Host-spezifische Overrides: kein ZFS auf diesem Knoten, reale Storages nutzen
+zfs_enabled: false
+# Verwende LVM thinpool für VM-Disks (Proxmox default auf diesem Host)
+storage_thin_pool: "local-lvm"
+# Verfügbare PVE-Storages (gemäß `pvesm status`)
+vm_storage: "local-lvm"
+backup_storage: "fanxiang-backup"
+dir_storage: "wd-vm"
+
+# LXC Docker-Support gezielt aktivieren
+allow_docker_in_lxc: true
+lxc_container_ids:
+	- 100
+	- 105

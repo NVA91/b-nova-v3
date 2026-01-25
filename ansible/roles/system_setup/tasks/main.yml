@@ -4,33 +4,34 @@
 # ============================================================================
 # SECTION 1: Proxmox Repository Management
 # ============================================================================
-
 - name: "Proxmox Repos: Enterprise Repository deaktivieren (keine Subscription)"
-  ansible.builtin.lineinfile:
+  ansible.builtin.file:
     path: /etc/apt/sources.list.d/pve-enterprise.list
     state: absent
-  when: ansible_distribution == 'Debian'
+  when: ansible_facts['distribution'] == 'Debian'
   tags:
     - system_setup
     - repos
     - proxmox
 
-- name: "Proxmox Repos: No-Subscription Repository hinzufügen"
+- name: "Proxmox Repos: No-Subscription Repository hinzufügen (Bookworm Forced)"
   ansible.builtin.apt_repository:
-    repo: "deb http://download.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-no-subscription"
+    repo: "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription"
     state: present
     filename: pve-no-subscription
-  when: ansible_distribution == 'Debian'
+  when: ansible_facts['distribution'] == 'Debian'
   tags:
     - system_setup
     - repos
     - proxmox
 
-- name: "Proxmox Repos: Proxmox Release Key hinzufügen"
-  ansible.builtin.apt_key:
-    url: "http://download.proxmox.com/debian/proxmox-release-{{ ansible_distribution_release }}.gpg"
-    state: present
-  when: ansible_distribution == 'Debian'
+- name: "Proxmox Repos: Proxmox Release Key modern herunterladen (Bookworm Forced)"
+  ansible.builtin.get_url:
+    url: "http://download.proxmox.com/debian/proxmox-release-bookworm.gpg"
+    dest: "/etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg"
+    mode: '0644'
+    force: true
+  when: ansible_facts['distribution'] == 'Debian'
   tags:
     - system_setup
     - repos
@@ -44,7 +45,7 @@
   ansible.builtin.apt:
     update_cache: yes
     cache_valid_time: 3600
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - packages
@@ -52,7 +53,8 @@
 - name: "System: Alle Pakete aktualisieren (inkl. PVE Kernel)"
   ansible.builtin.apt:
     upgrade: dist
-  when: ansible_os_family == 'Debian'
+    autoremove: yes
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - packages
@@ -60,9 +62,15 @@
 
 - name: "System: Erforderliche Pakete installieren"
   ansible.builtin.apt:
-    name: "{{ system_setup_packages }}"
+    name:
+      - curl
+      - gnupg
+      - ca-certificates
+      - sudo
+      - git
     state: present
-  when: ansible_os_family == 'Debian'
+    update_cache: yes
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - packages
@@ -71,7 +79,7 @@
   ansible.builtin.apt:
     name: ifupdown2
     state: present
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - packages
@@ -111,29 +119,31 @@
       - zfsutils-linux
       - zfs-dkms
     state: present
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - storage
     - zfs
 
 - name: "Storage: ZFS-Pool für VMs erstellen (vmpool)"
-  ansible.builtin.command:
-    cmd: "zpool create -f vmpool /dev/nvme0n1"
-  args:
-    creates: "/vmpool"
-  when: nova_hardware.spec.storage.vm_disk.filesystem == 'zfs'
+  community.general.zpool:
+    name: vmpool
+    devices:
+      - /dev/nvme0n1
+    state: present
+  when: zfs_enabled | default(false)
   tags:
     - system_setup
     - storage
     - zfs
 
 - name: "Storage: ZFS-Pool für Storage erstellen (tank)"
-  ansible.builtin.command:
-    cmd: "zpool create -f tank /dev/nvme1n1"
-  args:
-    creates: "/tank"
-  when: nova_hardware.spec.storage.storage_disk.filesystem == 'zfs'
+  community.general.zpool:
+    name: tank
+    devices:
+      - /dev/nvme1n1
+    state: present
+  when: zfs_enabled | default(false)
   tags:
     - system_setup
     - storage
@@ -142,9 +152,11 @@
 - name: "Storage: ZFS ARC-Limit setzen (vmpool)"
   ansible.builtin.lineinfile:
     path: /etc/modprobe.d/zfs.conf
-    line: "options zfs zfs_arc_max={{ nova_hardware.spec.storage.vm_disk.zfs_arc_max | regex_replace(' GB', '') | int * 1024 * 1024 * 1024 }}"
+    regexp: '^options zfs zfs_arc_max='
+    line: "options zfs zfs_arc_max={{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int * 1024 * 1024 * 1024) }}"
     create: yes
-  when: nova_hardware.spec.storage.vm_disk.filesystem == 'zfs'
+    backup: yes
+  when: zfs_enabled | default(false)
   tags:
     - system_setup
     - storage
@@ -153,9 +165,11 @@
 - name: "Storage: ZFS ARC-Limit setzen (tank)"
   ansible.builtin.lineinfile:
     path: /etc/modprobe.d/zfs.conf
-    line: "options zfs zfs_arc_max={{ nova_hardware.spec.storage.storage_disk.zfs_arc_max | regex_replace(' GB', '') | int * 1024 * 1024 * 1024 }}"
+    regexp: '^options zfs zfs_arc_max='
+    line: "options zfs zfs_arc_max={{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int * 1024 * 1024 * 1024) }}"
     create: yes
-  when: nova_hardware.spec.storage.storage_disk.filesystem == 'zfs'
+    backup: yes
+  when: zfs_enabled | default(false)
   tags:
     - system_setup
     - storage
@@ -192,7 +206,7 @@
     name: linux-image-amd64
     state: absent
   when: 
-    - ansible_os_family == 'Debian'
+    - ansible_facts['os_family'] == 'Debian'
     - remove_debian_kernel | default(false) | bool
   tags:
     - system_setup
@@ -217,13 +231,15 @@
     - gpu_passthrough
 
 - name: "Kernel: VFIO-Module für GPU-Passthrough laden"
-  ansible.builtin.copy:
-    dest: /etc/modules-load.d/vfio.conf
-    content: |
+  ansible.builtin.blockinfile:
+    path: /etc/modules-load.d/vfio.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - VFIO MODULES"
+    block: |
       vfio
       vfio_iommu_type1
       vfio_pci
       vfio_virqfd
+    create: yes
     mode: '0644'
   tags:
     - system_setup
@@ -231,15 +247,17 @@
     - gpu_passthrough
 
 - name: "Kernel: NVIDIA-Treiber blacklisten (für Passthrough)"
-  ansible.builtin.copy:
-    dest: /etc/modprobe.d/blacklist-nvidia.conf
-    content: |
+  ansible.builtin.blockinfile:
+    path: /etc/modprobe.d/blacklist-nvidia.conf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - NVIDIA BLACKLIST"
+    block: |
       blacklist nouveau
       blacklist nvidia
       blacklist nvidia_drm
       blacklist nvidia_modeset
+    create: yes
     mode: '0644'
-  when: nova_hardware.gpu.egpu.enabled | default(false)
+  when: (nova_hardware | default({})).get('gpu', {}).get('egpu', {}).get('enabled', false)
   tags:
     - system_setup
     - kernel
@@ -270,7 +288,16 @@
     regexp: '^LANG='
     line: 'LANG={{ system_locale | default("en_US.UTF-8") }}'
     create: yes
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
+  tags:
+    - system_setup
+    - configuration
+
+- name: "System: Locales generieren"
+  ansible.builtin.command:
+    cmd: "locale-gen {{ system_locale | default('de_DE.UTF-8') }}"
+  register: locale_gen
+  changed_when: "'generating' in locale_gen.stdout"
   tags:
     - system_setup
     - configuration
@@ -278,11 +305,11 @@
 - name: "System: Hostname validieren (nicht ändern bei laufendem PVE)"
   ansible.builtin.assert:
     that:
-      - inventory_hostname == ansible_hostname
+      - inventory_hostname == ansible_facts['hostname']
     fail_msg: |
       Hostname-Mismatch erkannt!
       Inventory: {{ inventory_hostname }}
-      System: {{ ansible_hostname }}
+      System: {{ ansible_facts['hostname'] }}
       Hostname-Änderungen bei laufendem Proxmox sind kritisch und erfordern manuelle Schritte.
       Bitte synchronisieren Sie die Hostnamen manuell oder kontaktieren Sie den Administrator.
   tags:
@@ -298,7 +325,7 @@
   ansible.builtin.apt:
     name: ufw
     state: absent
-  when: ansible_os_family == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian'
   tags:
     - system_setup
     - firewall
@@ -314,30 +341,48 @@
     - firewall
     - proxmox
 
-- name: "Firewall: PVE Firewall aktivieren (Cluster Level)"
-  ansible.builtin.lineinfile:
-    path: /etc/pve/firewall/cluster.fw
-    line: "enable: 1"
-    create: yes
-    mode: '0644'
-  tags:
-    - system_setup
-    - firewall
-    - proxmox
-
-- name: "Firewall: SSH Regel hinzufügen (Management)"
+- name: "Proxmox: LXC Docker-Support (Bedingt)"
   ansible.builtin.blockinfile:
-    path: /etc/pve/firewall/cluster.fw
+    path: "/etc/pve/lxc/{{ item }}.conf"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - DOCKER PERMISSIONS"
     block: |
-      [RULES]
-      IN SSH(ACCEPT)
-      IN HTTPS(ACCEPT)
-    create: yes
-    mode: '0644'
+      lxc.apparmor.profile: unconfined
+      lxc.cap.drop: 
+      lxc.cgroup.devices.allow: a
+  loop: "{{ lxc_container_ids }}"
+  when:
+    - allow_docker_in_lxc | default(false)
+    - lxc_container_ids is defined
   tags:
-    - system_setup
-    - firewall
     - proxmox
+    - lxc_fix
+
+# - name: "Firewall: PVE Firewall aktivieren (Cluster Level)"
+#   ansible.builtin.lineinfile:
+#     path: /etc/pve/firewall/cluster.fw
+#     line: "enable: 1"
+#     create: yes
+#     mode: '0644'
+#     unsafe_writes: true
+#   tags:
+#     - system_setup
+#     - firewall
+#     - proxmox
+
+# - name: "Firewall: SSH Regel hinzufügen (Management)"
+#   ansible.builtin.blockinfile:
+#     path: /etc/pve/firewall/cluster.fw
+#     block: |
+#       [RULES]
+#       IN SSH(ACCEPT)
+#       IN HTTPS(ACCEPT)
+#     create: yes
+#     mode: '0644'
+#     unsafe_writes: true
+#   tags:
+#     - system_setup
+#     - firewall
+#     - proxmox
 
 # ============================================================================
 # SECTION 6: Logging und Verzeichnisse
@@ -361,3 +406,5 @@
       - "Firewall konfiguriert"
   tags:
     - system_setup
+
+

@@ -1,0 +1,10 @@
+---
+# Hardware Security (validation-only) defaults
+
+# When true, the role can fail on hard security requirements.
+# Keep false by default to avoid blocking deployments.
+hardware_security_strict: false
+
+# Optional: list of PCI IDs to validate IOMMU isolation for.
+# If empty, the role will try to infer from gpu_hookscript (gpu_pci_ids or nova_hardware).
+hardware_security_pci_ids: []

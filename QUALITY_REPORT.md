@@ -26,22 +26,19 @@
 
 ### Proxmox Server
 
-**Mini-PC (Host und für eGPU):**
-- Prozessor: AMD Ryzen 7 H255 (mit NPU)
-- Grafik (iGPU): AMD Radeon 780M
-- Arbeitsspeicher: 32 GB DDR5 5600 MT/s
-- Speicher (NVMe PCIe 4.0, WD Black): 1 TB (System) + 2 TB (Storage)
-- Netzwerk: 2 × 2,5 Gbit/s LAN (Realtek 8125BG)
-- Konnektivität: Wi‑Fi 6E, Bluetooth 5.2
-- Mini‑PC mit OCuLink‑Port
+Mini-PC (Host und für eGPU):
+Prozessor: AMD Ryzen 7 H255, mit NPU
+Grafik: AMD Radeon 780M
+Arbeitsspeicher: 32 GB DDR5 5600 MT
+Speicher: 2TB M.2 NVMe PCIe 4.0 SSD (WD Black) 1TB system 2 TB storech,
+2 × 2,5-Gbit/s-LAN (Realtek 8125BG), Lüfter-/LED-Steuerung,
+Konnektivität: Wi-Fi 6E, Bluetooth 5.2
+Mini-PC mit OCuLink-Port
+eGPU-Dock: Minisforum DEG1 Oculink (PCIe Gen4 × 4)  
+GPU (eGPU): NVIDIA RTX 5060 Ti 16GB
 
-**eGPU‑Setup:**
-- eGPU‑Dock: Minisforum DEG1 OCuLink (PCIe Gen4 × 4)
-- GPU (eGPU): NVIDIA RTX 5060 Ti 16 GB
-
-**Wichtiger Hinweis (Finger weg):**
-- XMG Neo M21 mit RTX 3080 (intern) ist der Hauptrechner.
-- Der XMG Neo M21 nutzt in diesem Setup keine eGPU und ist nicht Teil des Proxmox/eGPU‑Setups.
+XMG Neo M21 mit RTX 3080 (intern) Hauptrechner 
+Wichtiger Hinweis: Der XMG Neo M21 nutzt keine eGPU in diesem Setup; er bleibt eigenständig mit RTX 3080.
 
 | Kategorie | Status | Details |
 |-----------|--------|---------|

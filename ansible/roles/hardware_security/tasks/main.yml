@@ -1,0 +1,123 @@
+---
+# hardware_security Role - Validierung (keine Änderungen am System)
+
+- name: "Hardware Security: PCI-IDs normalisieren (explizit oder aus nova_hardware/gpu_pci_ids)"
+  ansible.builtin.set_fact:
+    hardware_security_effective_pci_ids: >-
+      {{
+        (hardware_security_pci_ids | default([]))
+        if (hardware_security_pci_ids | default([]) | length) > 0
+        else (
+          (gpu_pci_ids | default([]))
+          if (gpu_pci_ids | default([]) | length) > 0
+          else (
+            [nova_hardware.spec.gpu.egpu.pci_id]
+            + ([nova_hardware.spec.gpu.egpu.audio_pci_id] if (nova_hardware.spec.gpu.egpu.audio_pci_id is defined and nova_hardware.spec.gpu.egpu.audio_pci_id | length > 0) else [])
+          )
+          if (nova_hardware is defined and nova_hardware.spec is defined and nova_hardware.spec.gpu is defined and nova_hardware.spec.gpu.egpu is defined and nova_hardware.spec.gpu.egpu.pci_id is defined)
+          else []
+        )
+      }}
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Kernel cmdline lesen"
+  ansible.builtin.command:
+    cmd: cat /proc/cmdline
+  register: hardware_cmdline
+  changed_when: false
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: IOMMU-Gruppen Verzeichnis prüfen"
+  ansible.builtin.stat:
+    path: /sys/kernel/iommu_groups
+  register: iommu_groups_dir
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Warnung wenn IOMMU-Gruppen fehlen"
+  ansible.builtin.debug:
+    msg:
+      - "WARNUNG: /sys/kernel/iommu_groups existiert nicht."
+      - "IOMMU ist evtl. deaktiviert oder nicht verfügbar (GPU Passthrough unsicher)."
+      - "Kernel cmdline: {{ hardware_cmdline.stdout }}"
+  when: not iommu_groups_dir.stat.exists
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Optional strict fail wenn IOMMU-Gruppen fehlen"
+  ansible.builtin.fail:
+    msg: "IOMMU-Gruppen fehlen (/sys/kernel/iommu_groups). Prüfe BIOS (SVM/IOMMU) und Kernel-Parameter."
+  when: hardware_security_strict | bool and (not iommu_groups_dir.stat.exists)
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Kernel cmdline Hinweis (IOMMU Parameter)"
+  ansible.builtin.debug:
+    msg:
+      - "Hinweis: Für AMD sind typische Parameter: amd_iommu=on iommu=pt"
+      - "Aktuelle Kernel cmdline: {{ hardware_cmdline.stdout }}"
+  when: (hardware_security_effective_pci_ids | length) > 0
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: IOMMU-Gruppe für PCI Device ermitteln"
+  ansible.builtin.command:
+    cmd: "readlink -f /sys/bus/pci/devices/{{ item }}/iommu_group"
+  register: iommu_group_links
+  failed_when: false
+  changed_when: false
+  loop: "{{ hardware_security_effective_pci_ids }}"
+  when: iommu_groups_dir.stat.exists
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: IOMMU-Gruppennummer extrahieren"
+  ansible.builtin.set_fact:
+    iommu_groups_by_pci: >-
+      {{
+        dict(
+          iommu_group_links.results
+          | selectattr('rc', 'equalto', 0)
+          | map(attribute='item')
+          | zip(
+              iommu_group_links.results
+              | selectattr('rc', 'equalto', 0)
+              | map(attribute='stdout')
+              | map('regex_search', '/iommu_groups/(\\d+)$', '\\1')
+            )
+        )
+      }}
+  when: iommu_groups_dir.stat.exists
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: IOMMU Gruppen-Inhalt anzeigen"
+  ansible.builtin.command:
+    cmd: "ls -1 /sys/kernel/iommu_groups/{{ iommu_groups_by_pci[item] }}/devices"
+  register: iommu_group_contents
+  failed_when: false
+  changed_when: false
+  loop: "{{ iommu_groups_by_pci.keys() | list }}"
+  when: iommu_groups_dir.stat.exists and (iommu_groups_by_pci is defined)
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Bericht - PCI -> IOMMU Gruppe"
+  ansible.builtin.debug:
+    msg:
+      - "PCI IDs geprüft: {{ hardware_security_effective_pci_ids }}"
+      - "PCI → IOMMU Gruppe: {{ iommu_groups_by_pci | default({}) }}"
+  tags:
+    - hardware_security
+
+- name: "Hardware Security: Warnung bei fehlender PCI->IOMMU Zuordnung"
+  ansible.builtin.debug:
+    msg:
+      - "WARNUNG: Für mindestens ein PCI Device konnte keine IOMMU-Gruppe ermittelt werden."
+      - "Mögliche Ursachen: falsche PCI-ID, Gerät nicht vorhanden, IOMMU deaktiviert."
+      - "PCI IDs: {{ hardware_security_effective_pci_ids }}"
+  when: (hardware_security_effective_pci_ids | length) > 0 and (iommu_groups_by_pci | default({}) | length) != (hardware_security_effective_pci_ids | length)
+  tags:
+    - hardware_security

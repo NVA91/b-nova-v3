@@ -149,6 +149,23 @@
       tags:
         - qa_smoke
 
+# =========================================================================
+# PLAY 5b: Hardware Security (Validation-only)
+# =========================================================================
+
+- name: "PLAY 5b: Hardware Security (Validation-only)"
+  hosts: proxmox_servers
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: "Hardware: Security Validation"
+      ansible.builtin.include_role:
+        name: hardware_security
+      tags:
+        - never
+        - hardware_security
+
 # ============================================================================
 # PLAY 6: Abschluss und Reporting
 # ============================================================================

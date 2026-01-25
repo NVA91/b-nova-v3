@@ -59,26 +59,26 @@
   tasks:
     - name: "Hardware: Pre-Flight Validation"
       ansible.builtin.include_role:
-        name: hardware_validation
+        name: hardware/hardware_validation
       tags:
         - hardware_validation
         - preflight
 
     - name: "Proxmox: System-Setup"
       ansible.builtin.include_role:
-        name: system_setup
+        name: core/system_setup
       tags:
         - system_setup
 
     - name: "Proxmox: User-Management"
       ansible.builtin.include_role:
-        name: user_management
+        name: core/user_management
       tags:
         - user_management
 
     - name: "Proxmox: VM-Provisioning"
       ansible.builtin.include_role:
-        name: provision_guests
+        name: core/provision_guests
       tags:
         - never
         - provision
@@ -96,7 +96,7 @@
   tasks:
     - name: "Docker: Installiere Docker Engine"
       ansible.builtin.include_role:
-        name: docker_setup
+        name: core/docker_setup
       tags:
         - docker_setup
 
@@ -113,7 +113,7 @@
   tasks:
     - name: "Apps: Deployment"
       ansible.builtin.include_role:
-        name: app_deployment
+        name: apps/app_deployment
       tags:
         - app_deployment
 
@@ -145,7 +145,7 @@
   tasks:
     - name: "Hardware: Security Validation"
       ansible.builtin.include_role:
-        name: hardware_security
+        name: hardware/hardware_security
       tags:
         - never
         - hardware_security

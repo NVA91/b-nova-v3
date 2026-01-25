@@ -289,3 +289,7 @@ docker run --rm -v awx-postgres-data:/data -v $(pwd):/backup \
 - Kein direkter Production-Zugriff aus Controller
 - Keine manuellen Änderungen in AWX (nutze `awx.yml`)
 - Keine `.env` ins Git committen
+
+[WARNING]: Unable to parse hosts.ini
+[WARNING]: No inventory was parsed
+[WARNING]: Could not match awx_servers

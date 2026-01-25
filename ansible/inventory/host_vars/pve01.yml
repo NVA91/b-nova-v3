@@ -5,32 +5,32 @@ ssh_key_path: /home/one-nova/.ssh/id_ansible_service.pub
 
 # Hardware-Spezifikation (Fix) – wird u.a. vom gpu_hookscript unterstützt
 nova_hardware:
-	spec:
-		cpu:
-			model: "AMD Ryzen 7 H255"
-			features:
-				- "NPU"
-		ram:
-			size_gb: 32
-			type: "DDR5"
-			speed_mt_s: 5600
-		storage:
-			nvme:
-				vendor: "WD Black"
-				devices:
-					- purpose: "system"
-						size_tb: 1
-					- purpose: "storage"
-						size_tb: 2
-		gpu:
-			igpu:
-				model: "AMD Radeon 780M"
-			egpu:
-				dock: "Minisforum DEG1 OCuLink (PCIe Gen4 ×4)"
-				model: "NVIDIA RTX 5060 Ti 16GB"
-				# WICHTIG: hier die echten PCI-IDs eintragen (Beispiel):
-				# pci_id: "0000:01:00.0"
-				# audio_pci_id: "0000:01:00.1"
+  spec:
+    cpu:
+      model: "AMD Ryzen 7 H255"
+      features:
+        - "NPU"
+    ram:
+      size_gb: 32
+      type: "DDR5"
+      speed_mt_s: 5600
+    storage:
+      nvme:
+        vendor: "WD Black"
+        devices:
+          - purpose: "system"
+            size_tb: 1
+          - purpose: "storage"
+            size_tb: 2
+    gpu:
+      igpu:
+        model: "AMD Radeon 780M"
+      egpu:
+        dock: "Minisforum DEG1 OCuLink (PCIe Gen4 ×4)"
+        model: "NVIDIA RTX 5060 Ti 16GB"
+        # WICHTIG: hier die echten PCI-IDs eintragen (Beispiel):
+        # pci_id: "0000:01:00.0"
+        # audio_pci_id: "0000:01:00.1"
 
 # GPU Hookscript Steuerung
 # Setze gpu_vm_id (VMID) + PCI IDs, damit das Hookscript aktiv wird.

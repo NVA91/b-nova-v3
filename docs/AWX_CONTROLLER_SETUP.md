@@ -97,6 +97,12 @@ Nach erfolgreichem AWX-Start:
 
 3. **Führe Controller-Playbook aus**:
    ```bash
+   cd ansible/playbooks
+   ansible-playbook controller.yml
+   ```
+   
+   **Hinweis**: Das playbooks/-Verzeichnis hat eine eigene ansible.cfg, die automatisch das richtige Inventory lädt. Alternativ können Sie von überall aus mit explizitem Inventory-Pfad laufen lassen:
+   ```bash
    ansible-playbook ansible/playbooks/controller.yml \
      -i ansible/inventory/controller/hosts.yml
    ```

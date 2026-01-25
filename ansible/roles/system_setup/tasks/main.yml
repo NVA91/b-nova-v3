@@ -340,6 +340,7 @@
       lxc.apparmor.profile: unconfined
       lxc.cap.drop: 
       lxc.cgroup.devices.allow: a
+    backup: yes
   loop: "{{ lxc_container_ids }}"
   when:
     - allow_docker_in_lxc | default(false)

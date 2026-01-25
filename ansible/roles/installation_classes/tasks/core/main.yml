@@ -142,6 +142,7 @@
           nodes {{ inventory_hostname }}
           disable 0
     create: yes
+    backup: yes
     mode: '0644'
   tags:
     - core

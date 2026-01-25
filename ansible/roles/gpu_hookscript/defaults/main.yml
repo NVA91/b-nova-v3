@@ -5,6 +5,14 @@
 # gpu_pci_ids:
 #   - "0000:01:00.0"
 #   - "0000:01:00.1"
+#
+# Alternative input (optional):
+# nova_hardware:
+#   spec:
+#     gpu:
+#       egpu:
+#         pci_id: "0000:01:00.0"
+#         audio_pci_id: "0000:01:00.1"
 
 # List of PCI device IDs to rebind between host driver and vfio-pci.
 # If empty/undefined, the role will skip installing the hookscript.

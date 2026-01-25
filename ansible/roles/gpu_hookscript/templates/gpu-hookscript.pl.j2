@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use POSIX qw(strftime);
+
+my $vmid  = shift;
+my $phase = shift;
+
+my $host_driver = '{{ gpu_host_driver | default('nvidia') }}';
+my $vfio_driver = '{{ gpu_vfio_driver | default('vfio-pci') }}';
+my $log_file    = '{{ gpu_hookscript_log | default('/var/log/pve-gpu-hookscript.log') }}';
+
+my @pci_ids = ({{ gpu_hookscript_pci_ids | map('quote') | join(', ') }});
+
+sub log_msg {
+    my ($msg) = @_;
+    my $ts  = strftime('%Y-%m-%d %H:%M:%S', localtime);
+    my $ctx = defined($vmid)  ? $vmid  : 'unknown';
+    my $ph  = defined($phase) ? $phase : 'unknown';
+
+    if (open(my $fh, '>>', $log_file)) {
+        print $fh "$ts [$ctx/$ph] $msg\n";
+        close($fh);
+    }
+}
+
+sub is_valid_pci_id {
+    my ($pci) = @_;
+    return defined($pci) && $pci =~ /^[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]$/i;
+}
+
+sub write_sysfs {
+    my ($path, $value) = @_;
+    if (!-e $path) {
+        log_msg("SKIP missing sysfs path: $path");
+        return 0;
+    }
+    if (!open(my $fh, '>', $path)) {
+        log_msg("WARN cannot open $path: $!");
+        return 0;
+    }
+    print $fh $value;
+    close($fh);
+    return 1;
+}
+
+sub device_exists {
+    my ($pci) = @_;
+    return -d "/sys/bus/pci/devices/$pci";
+}
+
+sub unbind_driver {
+    my ($driver, $pci) = @_;
+    return write_sysfs("/sys/bus/pci/drivers/$driver/unbind", "$pci\n");
+}
+
+sub bind_driver {
+    my ($driver, $pci) = @_;
+    return write_sysfs("/sys/bus/pci/drivers/$driver/bind", "$pci\n");
+}
+
+sub set_override {
+    my ($pci, $override) = @_;
+    my $path = "/sys/bus/pci/devices/$pci/driver_override";
+    return write_sysfs($path, "$override\n");
+}
+
+# Hard fail on invalid configuration to avoid dangerous/unpredictable sysfs writes.
+foreach my $pci (@pci_ids) {
+    if (!is_valid_pci_id($pci)) {
+        print STDERR "Invalid or missing PCI ID for GPU passthrough: '$pci'\n";
+        log_msg("ERROR invalid PCI ID: '$pci'");
+        exit 1;
+    }
+}
+
+if ($phase eq 'pre-start') {
+    foreach my $pci (@pci_ids) {
+        if (!device_exists($pci)) {
+            log_msg("SKIP device not present: $pci");
+            next;
+        }
+        log_msg("pre-start: rebinding $pci to $vfio_driver (from $host_driver)");
+        unbind_driver($host_driver, $pci);
+        set_override($pci, $vfio_driver);
+        bind_driver($vfio_driver, $pci);
+    }
+} elsif ($phase eq 'post-stop') {
+    foreach my $pci (@pci_ids) {
+        if (!device_exists($pci)) {
+            log_msg("SKIP device not present: $pci");
+            next;
+        }
+        log_msg("post-stop: rebinding $pci to $host_driver (from $vfio_driver)");
+        unbind_driver($vfio_driver, $pci);
+        set_override($pci, '');
+        bind_driver($host_driver, $pci);
+    }
+} else {
+    log_msg("INFO ignoring phase: $phase");
+}
+
+exit(0);

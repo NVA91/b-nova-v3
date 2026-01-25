@@ -1,24 +1,36 @@
 ---
 # gpu_hookscript Role - Dynamisches GPU-Passthrough
 
-- name: "Hookscript: Überspringen, wenn keine PCI-IDs konfiguriert sind"
-  ansible.builtin.debug:
-    msg:
-      - "gpu_hookscript: gpu_pci_ids ist leer/nicht gesetzt."
-      - "Role wird übersprungen (kein Hookscript installiert)."
-      - "Setze z.B. gpu_pci_ids: ['0000:01:00.0','0000:01:00.1'] und gpu_vm_id für Aktivierung."
-  when: gpu_pci_ids is not defined or (gpu_pci_ids | length) == 0
+- name: "Hookscript: PCI-IDs normalisieren (gpu_pci_ids oder nova_hardware)"
+  ansible.builtin.set_fact:
+    gpu_hookscript_pci_ids: >-
+      {{
+        (gpu_pci_ids | default([]))
+        if (gpu_pci_ids | default([]) | length) > 0
+        else (
+          [nova_hardware.spec.gpu.egpu.pci_id]
+          + ([nova_hardware.spec.gpu.egpu.audio_pci_id] if (nova_hardware.spec.gpu.egpu.audio_pci_id is defined and nova_hardware.spec.gpu.egpu.audio_pci_id | length > 0) else [])
+        )
+        if (nova_hardware is defined and nova_hardware.spec is defined and nova_hardware.spec.gpu is defined and nova_hardware.spec.gpu.egpu is defined and nova_hardware.spec.gpu.egpu.pci_id is defined)
+        else []
+      }}
+  tags:
+    - gpu_hookscript
+
+- name: "Fail if GPU PCI ID is not defined"
+  ansible.builtin.fail:
+    msg: "GPU PCI ID ist nicht gesetzt – kann GPU Passthrough nicht konfigurieren. Setze gpu_pci_ids oder nova_hardware.spec.gpu.egpu.pci_id."
+  when: gpu_vm_id is defined and (gpu_hookscript_pci_ids | length) == 0
   tags:
     - gpu_hookscript
 
 - name: "Hookscript: Validierung der PCI-IDs"
   ansible.builtin.assert:
     that:
-      - gpu_pci_ids is defined
-      - (gpu_pci_ids | length) > 0
-      - (gpu_pci_ids | select('match', '^0000:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$') | list | length) == (gpu_pci_ids | length)
-    fail_msg: "gpu_pci_ids muss eine Liste gültiger PCI-IDs sein (Format 0000:01:00.0)."
-  when: gpu_pci_ids is defined and (gpu_pci_ids | length) > 0
+      - (gpu_hookscript_pci_ids | length) > 0
+      - (gpu_hookscript_pci_ids | select('match', '^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$') | list | length) == (gpu_hookscript_pci_ids | length)
+    fail_msg: "GPU PCI IDs müssen gültig sein (Format 0000:01:00.0)."
+  when: (gpu_hookscript_pci_ids | length) > 0
   tags:
     - gpu_hookscript
 
@@ -27,7 +39,7 @@
     path: /var/lib/vz/snippets
     state: directory
     mode: '0755'
-  when: gpu_pci_ids is defined and (gpu_pci_ids | length) > 0
+  when: (gpu_hookscript_pci_ids | length) > 0
   tags:
     - gpu_hookscript
 
@@ -38,103 +50,16 @@
     owner: root
     group: root
     mode: '0640'
-  when: gpu_pci_ids is defined and (gpu_pci_ids | length) > 0
+  when: (gpu_hookscript_pci_ids | length) > 0
   tags:
     - gpu_hookscript
 
-- name: "Hookscript: GPU-Passthrough-Script erstellen"
-  ansible.builtin.copy:
+- name: "Install GPU hookscript"
+  ansible.builtin.template:
+    src: gpu-hookscript.pl.j2
     dest: /var/lib/vz/snippets/gpu-hookscript.pl
-    content: |
-      #!/usr/bin/perl
-      use strict;
-      use warnings;
-    use POSIX qw(strftime);
-      
-      my $vmid = shift;
-      my $phase = shift;
-
-    my $host_driver = '{{ gpu_host_driver | default('nvidia') }}';
-    my $vfio_driver = '{{ gpu_vfio_driver | default('vfio-pci') }}';
-    my $log_file = '{{ gpu_hookscript_log | default('/var/log/pve-gpu-hookscript.log') }}';
-    my @pci_ids = ({{ gpu_pci_ids | map('quote') | join(', ') }});
-
-    sub log_msg {
-      my ($msg) = @_;
-      my $ts = strftime('%Y-%m-%d %H:%M:%S', localtime);
-      my $ctx = defined($vmid) ? $vmid : 'unknown';
-      my $ph = defined($phase) ? $phase : 'unknown';
-      if (open(my $fh, '>>', $log_file)) {
-        print $fh "$ts [$ctx/$ph] $msg\n";
-        close($fh);
-      }
-    }
-
-    sub write_sysfs {
-      my ($path, $value) = @_;
-      if (!-e $path) {
-        log_msg("SKIP missing sysfs path: $path");
-        return 0;
-      }
-      if (!open(my $fh, '>', $path)) {
-        log_msg("WARN cannot open $path: $!");
-        return 0;
-      }
-      print $fh $value;
-      close($fh);
-      return 1;
-    }
-
-    sub device_exists {
-      my ($pci) = @_;
-      return -d "/sys/bus/pci/devices/$pci";
-    }
-
-    sub unbind_driver {
-      my ($driver, $pci) = @_;
-      return write_sysfs("/sys/bus/pci/drivers/$driver/unbind", "$pci\n");
-    }
-
-    sub bind_driver {
-      my ($driver, $pci) = @_;
-      return write_sysfs("/sys/bus/pci/drivers/$driver/bind", "$pci\n");
-    }
-
-    sub set_override {
-      my ($pci, $override) = @_;
-      my $path = "/sys/bus/pci/devices/$pci/driver_override";
-      return write_sysfs($path, "$override\n");
-    }
-      
-      if ($phase eq 'pre-start') {
-      foreach my $pci (@pci_ids) {
-        if (!device_exists($pci)) {
-          log_msg("SKIP device not present: $pci");
-          next;
-        }
-        log_msg("pre-start: rebinding $pci to $vfio_driver (from $host_driver)");
-        unbind_driver($host_driver, $pci);
-        set_override($pci, $vfio_driver);
-        bind_driver($vfio_driver, $pci);
-      }
-      } elsif ($phase eq 'post-stop') {
-      foreach my $pci (@pci_ids) {
-        if (!device_exists($pci)) {
-          log_msg("SKIP device not present: $pci");
-          next;
-        }
-        log_msg("post-stop: rebinding $pci to $host_driver (from $vfio_driver)");
-        unbind_driver($vfio_driver, $pci);
-        set_override($pci, '');
-        bind_driver($host_driver, $pci);
-      }
-    } else {
-      log_msg("INFO ignoring phase: $phase");
-      }
-      
-      exit(0);
     mode: '0755'
-  when: gpu_pci_ids is defined and (gpu_pci_ids | length) > 0
+  when: (gpu_hookscript_pci_ids | length) > 0
   tags:
     - gpu_hookscript
 
@@ -143,6 +68,6 @@
     path: "/etc/pve/qemu-server/{{ gpu_vm_id }}.conf"
     line: "hookscript: local:snippets/gpu-hookscript.pl"
     create: no
-  when: gpu_vm_id is defined and gpu_pci_ids is defined and (gpu_pci_ids | length) > 0
+  when: gpu_vm_id is defined and (gpu_hookscript_pci_ids | length) > 0
   tags:
     - gpu_hookscript

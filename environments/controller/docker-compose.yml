@@ -3,128 +3,52 @@
 # Isolated sandbox for testing and automation management
 
 services:
-  # ============================================================================
-  # PostgreSQL Database
-  # ============================================================================
+  # ==========================================================================
+  # PostgreSQL Database (simplified)
+  # ==========================================================================
   awx-postgres:
     image: postgres:15-alpine
     container_name: awx-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_DB: awx
+      POSTGRES_USER: awx
+      POSTGRES_PASSWORD: ${AWX_DB_PASSWORD}
     volumes:
-      - awx-postgres-data:/var/lib/postgresql/data
-    networks:
-      - awx-network
+      - awx-db:/var/lib/postgresql/data
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ============================================================================
-  # Redis Cache
+  # Redis Cache (simplified)
   # ============================================================================
   awx-redis:
     image: redis:7-alpine
     container_name: awx-redis
-    command: redis-server --appendonly yes
-    volumes:
-      - awx-redis-data:/data
-    networks:
-      - awx-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
   # ============================================================================
-  # AWX Web Interface & API
+  # AWX Web Interface & API (simplified)
   # ============================================================================
   awx-web:
-    image: ansible/awx:${AWX_VERSION:-23.9.0}
+    image: ansible/awx:latest
     container_name: awx-web
     depends_on:
-      awx-postgres:
-        condition: service_healthy
-      awx-redis:
-        condition: service_healthy
+      - awx-postgres
+      - awx-redis
     environment:
       SECRET_KEY: ${AWX_SECRET_KEY}
-      DATABASE_USER: ${POSTGRES_USER}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
-      DATABASE_NAME: ${POSTGRES_DB}
-      DATABASE_HOST: ${POSTGRES_HOST}
-      DATABASE_PORT: ${POSTGRES_PORT}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      AWX_ADMIN_USER: ${AWX_ADMIN_USER}
-      AWX_ADMIN_PASSWORD: ${AWX_ADMIN_PASSWORD}
+      DATABASE_HOST: awx-postgres
+      REDIS_HOST: awx-redis
     ports:
-      - "${AWX_WEB_PORT:-8080}:8052"
+      - "8080:8052"
     volumes:
-      # Read-only mount to prevent accidental changes
-      - ${ANSIBLE_PROJECT_PATH:-../../ansible}:/var/lib/awx/projects:ro
-    networks:
-      - awx-network
+      - awx-projects:/var/lib/awx/projects
+      - ../../ansible:/ansible:ro  # Read-only mount
     restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETUID
-      - SETGID
-      - NET_BIND_SERVICE
 
   # ============================================================================
   # AWX Task Manager (Ansible Job Executor)
   # ============================================================================
-  awx-task:
-    image: ansible/awx:${AWX_VERSION:-23.9.0}
-    container_name: awx-task
-    depends_on:
-      awx-postgres:
-        condition: service_healthy
-      awx-redis:
-        condition: service_healthy
-    environment:
-      SECRET_KEY: ${AWX_SECRET_KEY}
-      DATABASE_USER: ${POSTGRES_USER}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
-      DATABASE_NAME: ${POSTGRES_DB}
-      DATABASE_HOST: ${POSTGRES_HOST}
-      DATABASE_PORT: ${POSTGRES_PORT}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      SUPERVISOR_WEB_CONFIG_PATH: /etc/supervisord.conf
-    volumes:
-      # Read-only mount to prevent accidental changes
-      - ${ANSIBLE_PROJECT_PATH:-../../ansible}:/var/lib/awx/projects:ro
-      # SSH keys for Ansible connections (read-only)
-      - ${SSH_KEY_PATH:-${HOME}/.ssh}:/root/.ssh:ro
-      # Ansible configuration
-      - ./awx-config/ansible.cfg:/etc/ansible/ansible.cfg:ro
-    networks:
-      - awx-network
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETUID
-      - SETGID
-      - NET_BIND_SERVICE
-    deploy:
-      resources:
-        limits:
-          memory: ${AWX_TASK_MEM_LIMIT:-2048}M
-          cpus: '${AWX_TASK_CPU_LIMIT:-1.5}'
+
 
 # ============================================================================
 # Networks
@@ -140,7 +64,5 @@ networks:
 # Volumes
 # ============================================================================
 volumes:
-  awx-postgres-data:
-    driver: local
-  awx-redis-data:
-    driver: local
+  awx-projects:
+  awx-db:

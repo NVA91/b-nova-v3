@@ -156,8 +156,8 @@ services:
       dockerfile: Dockerfile.ai-service
     container_name: nova-v3-ai-service
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
       # Wir fügen "/app/app" hinzu, damit er den inneren Ordner findet
       - PYTHONPATH=/app:/app/app
     # --- DIESEN BLOCK AUSKOMMENTIERT: keine GPU-Reservationen für jetzt (CPU-only) ---

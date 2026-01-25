@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  awx-web:
+    image: {{ awx_image }}
+    container_name: awx-web
+    depends_on:
+      - awx-postgres
+      - awx-redis
+    environment:
+      SECRET_KEY: "{{ awx_secret_key }}"
+      DATABASE_HOST: awx-postgres
+      REDIS_HOST: awx-redis
+      DATABASE_USER: "{{ awx_db_user }}"
+      DATABASE_PASSWORD: "{{ awx_db_password }}"
+      DATABASE_NAME: "{{ awx_db_name }}"
+    ports:
+      - "8080:8052"
+    volumes:
+      - awx-projects:/var/lib/awx/projects:ro
+      - {{ awx_project_mount }}:/ansible:ro
+    restart: unless-stopped
+
+  awx-postgres:
+    image: postgres:15-alpine
+    container_name: awx-postgres
+    environment:
+      POSTGRES_DB: "{{ awx_db_name }}"
+      POSTGRES_USER: "{{ awx_db_user }}"
+      POSTGRES_PASSWORD: "{{ awx_db_password }}"
+    volumes:
+      - awx-db:/var/lib/postgresql/data
+
+  awx-redis:
+    image: redis:7-alpine
+    container_name: awx-redis
+
+volumes:
+  awx-projects:
+  awx-db:

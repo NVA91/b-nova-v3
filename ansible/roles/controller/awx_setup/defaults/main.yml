@@ -1,0 +1,17 @@
+---
+# Defaults for controller/awx_setup
+awx_install_method: "docker_compose"
+awx_compose_dest: "/opt/awx/docker-compose.yml"
+awx_project_dir: "/opt/awx/projects"
+awx_env_dest: "/opt/awx/.env"
+awx_image: "ansible/awx:latest"
+awx_db_user: "awx"
+awx_db_name: "awx"
+awx_db_password: "{{ lookup('env','AWX_DB_PASSWORD') | default('changeme') }}"
+awx_admin_user: "{{ lookup('env','AWX_ADMIN_USER') | default('admin') }}"
+awx_admin_password: "{{ lookup('env','AWX_ADMIN_PASSWORD') | default('changeme') }}"
+awx_secret_key: "{{ lookup('env','AWX_SECRET_KEY') | default('CHANGE_ME_GENERATE_SECURE_KEY') }}"
+awx_auto_configure: true
+awx_compose_template_src: "docker-compose.yml.j2"
+awx_env_template_src: "env.j2"
+awx_project_mount: "/opt/awx/projects"

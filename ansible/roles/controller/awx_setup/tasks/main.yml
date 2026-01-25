@@ -1,0 +1,76 @@
+---
+# Tasks for controller/awx_setup
+- name: "AWX: Ensure install directory exists"
+  ansible.builtin.file:
+    path: "/opt/awx"
+    state: directory
+    mode: '0755'
+
+- name: "AWX: Ensure projects directory exists"
+  ansible.builtin.file:
+    path: "{{ awx_project_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: "AWX: Upload docker-compose"
+  ansible.builtin.template:
+    src: "{{ awx_compose_template_src }}"
+    dest: "{{ awx_compose_dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: "AWX: Upload .env"
+  ansible.builtin.template:
+    src: "{{ awx_env_template_src }}"
+    dest: "{{ awx_env_dest }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: "AWX: Ensure docker present"
+  ansible.builtin.package:
+    name: docker.io
+    state: present
+  become: true
+
+- name: "AWX: Ensure docker-compose present (package)
+  "
+  ansible.builtin.package:
+    name: docker-compose
+    state: present
+  become: true
+  failed_when: false
+  changed_when: false
+
+- name: "AWX: Pull images (docker-compose)"
+  ansible.builtin.command:
+    cmd: docker-compose -f "{{ awx_compose_dest }}" pull
+    chdir: /opt/awx
+  register: awx_compose_pull
+  failed_when: false
+
+- name: "AWX: Start AWX stack (docker-compose up)"
+  ansible.builtin.command:
+    cmd: docker-compose -f "{{ awx_compose_dest }}" up -d
+    chdir: /opt/awx
+  register: awx_compose_up
+
+- name: "AWX: Wait for API to become available"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:8052/api/v2/ping/"
+    status_code: 200
+    validate_certs: false
+  register: awx_ping
+  retries: 30
+  delay: 10
+  until: awx_ping.status == 200
+  failed_when: false
+
+- name: "AWX: Optionally run controller playbook to configure AWX"
+  ansible.builtin.command:
+    cmd: "ansible-playbook ansible/playbooks/controller.yml -i ansible/inventory/controller/hosts.yml --limit awx-controller"
+  delegate_to: localhost
+  when: awx_auto_configure | bool
+  register: awx_configure
+  failed_when: false

@@ -29,3 +29,14 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* ===== Custom Components (optional) ===== */
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-nova-primary text-white rounded-lg hover:bg-blue-600 transition;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-nova-secondary text-white rounded-lg hover:bg-purple-600 transition;
+  }
+}

@@ -1,0 +1,4 @@
+---
+# Host-spezifische Variablen für pve01
+ssh_key_path: /home/one-nova/.ssh/id_ansible_service.pub
+# optional: default_user: admin

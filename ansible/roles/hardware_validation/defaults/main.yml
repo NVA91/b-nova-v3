@@ -1,0 +1,21 @@
+---
+# ansible/roles/hardware_validation/defaults/main.yml
+# Hardware Pre-Flight Checks - Minimum Requirements
+
+# CPU Requirements
+hardware_validation_min_cpu_cores: 4
+hardware_validation_min_cpu_threads: 8
+
+# Memory Requirements (in MB)
+hardware_validation_min_ram_mb: 8192  # 8 GB minimum
+
+# Storage Requirements (in GB)
+hardware_validation_min_storage_gb: 50
+
+# GPU Requirements (optional)
+hardware_validation_require_gpu: false
+hardware_validation_gpu_vendor: "nvidia"  # nvidia, amd, intel
+
+# Validation strictness
+hardware_validation_strict_mode: false  # Fail on warnings if true
+hardware_validation_show_details: true

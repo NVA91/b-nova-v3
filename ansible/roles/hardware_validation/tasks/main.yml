@@ -1,0 +1,213 @@
+---
+# ansible/roles/hardware_validation/tasks/main.yml
+# Hardware Pre-Flight Checks für CPU, RAM, Storage, GPU
+
+# ============================================================================
+# SECTION 1: CPU Validation
+# ============================================================================
+
+- name: "CPU: Gather CPU Facts"
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+      - processor
+  tags:
+    - hardware_validation
+    - cpu
+
+- name: "CPU: Validate CPU Cores"
+  ansible.builtin.assert:
+    that:
+      - ansible_processor_cores >= hardware_validation_min_cpu_cores
+    fail_msg: "Insufficient CPU cores. Required: {{ hardware_validation_min_cpu_cores }}, Found: {{ ansible_processor_cores }}"
+    success_msg: "CPU cores OK: {{ ansible_processor_cores }} cores available"
+  tags:
+    - hardware_validation
+    - cpu
+
+- name: "CPU: Validate CPU Threads"
+  ansible.builtin.assert:
+    that:
+      - ansible_processor_vcpus >= hardware_validation_min_cpu_threads
+    fail_msg: "Insufficient CPU threads. Required: {{ hardware_validation_min_cpu_threads }}, Found: {{ ansible_processor_vcpus }}"
+    success_msg: "CPU threads OK: {{ ansible_processor_vcpus }} threads available"
+  tags:
+    - hardware_validation
+    - cpu
+
+- name: "CPU: Show CPU Details"
+  ansible.builtin.debug:
+    msg:
+      - "CPU Model: {{ ansible_processor[2] | default('Unknown') }}"
+      - "CPU Cores: {{ ansible_processor_cores }}"
+      - "CPU Threads: {{ ansible_processor_vcpus }}"
+      - "CPU Count: {{ ansible_processor_count }}"
+  when: hardware_validation_show_details
+  tags:
+    - hardware_validation
+    - cpu
+
+# ============================================================================
+# SECTION 2: Memory Validation
+# ============================================================================
+
+- name: "RAM: Validate Memory"
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= hardware_validation_min_ram_mb
+    fail_msg: "Insufficient RAM. Required: {{ hardware_validation_min_ram_mb }}MB, Found: {{ ansible_memtotal_mb }}MB"
+    success_msg: "RAM OK: {{ ansible_memtotal_mb }}MB available ({{ (ansible_memtotal_mb / 1024) | round(2) }}GB)"
+  tags:
+    - hardware_validation
+    - ram
+
+- name: "RAM: Show Memory Details"
+  ansible.builtin.debug:
+    msg:
+      - "Total RAM: {{ (ansible_memtotal_mb / 1024) | round(2) }} GB"
+      - "Free RAM: {{ (ansible_memfree_mb / 1024) | round(2) }} GB"
+      - "Swap Total: {{ (ansible_swaptotal_mb / 1024) | round(2) }} GB"
+  when: hardware_validation_show_details
+  tags:
+    - hardware_validation
+    - ram
+
+# ============================================================================
+# SECTION 3: Storage Validation
+# ============================================================================
+
+- name: "Storage: Check Root Filesystem"
+  ansible.builtin.shell: |
+    df -BG / | tail -n 1 | awk '{print $2}' | sed 's/G//'
+  register: root_storage_gb
+  changed_when: false
+  tags:
+    - hardware_validation
+    - storage
+
+- name: "Storage: Validate Storage Space"
+  ansible.builtin.assert:
+    that:
+      - root_storage_gb.stdout | int >= hardware_validation_min_storage_gb
+    fail_msg: "Insufficient storage. Required: {{ hardware_validation_min_storage_gb }}GB, Found: {{ root_storage_gb.stdout }}GB"
+    success_msg: "Storage OK: {{ root_storage_gb.stdout }}GB available on root filesystem"
+  tags:
+    - hardware_validation
+    - storage
+
+- name: "Storage: Show Disk Details"
+  ansible.builtin.command: df -h
+  register: disk_info
+  changed_when: false
+  when: hardware_validation_show_details
+  tags:
+    - hardware_validation
+    - storage
+
+- name: "Storage: Display Disk Usage"
+  ansible.builtin.debug:
+    msg: "{{ disk_info.stdout_lines }}"
+  when: 
+    - hardware_validation_show_details
+    - disk_info.stdout_lines is defined
+  tags:
+    - hardware_validation
+    - storage
+
+# ============================================================================
+# SECTION 4: GPU Validation (Optional)
+# ============================================================================
+
+- name: "GPU: Check for NVIDIA GPU"
+  ansible.builtin.command: lspci | grep -i nvidia
+  register: nvidia_gpu_check
+  changed_when: false
+  failed_when: false
+  when: 
+    - hardware_validation_require_gpu
+    - hardware_validation_gpu_vendor == "nvidia"
+  tags:
+    - hardware_validation
+    - gpu
+
+- name: "GPU: Check for AMD GPU"
+  ansible.builtin.command: lspci | grep -i amd
+  register: amd_gpu_check
+  changed_when: false
+  failed_when: false
+  when: 
+    - hardware_validation_require_gpu
+    - hardware_validation_gpu_vendor == "amd"
+  tags:
+    - hardware_validation
+    - gpu
+
+- name: "GPU: Validate GPU Presence (NVIDIA)"
+  ansible.builtin.assert:
+    that:
+      - nvidia_gpu_check.rc == 0
+      - nvidia_gpu_check.stdout | length > 0
+    fail_msg: "NVIDIA GPU required but not found"
+    success_msg: "NVIDIA GPU detected: {{ nvidia_gpu_check.stdout }}"
+  when: 
+    - hardware_validation_require_gpu
+    - hardware_validation_gpu_vendor == "nvidia"
+  tags:
+    - hardware_validation
+    - gpu
+
+- name: "GPU: Validate GPU Presence (AMD)"
+  ansible.builtin.assert:
+    that:
+      - amd_gpu_check.rc == 0
+      - amd_gpu_check.stdout | length > 0
+    fail_msg: "AMD GPU required but not found"
+    success_msg: "AMD GPU detected: {{ amd_gpu_check.stdout }}"
+  when: 
+    - hardware_validation_require_gpu
+    - hardware_validation_gpu_vendor == "amd"
+  tags:
+    - hardware_validation
+    - gpu
+
+- name: "GPU: Show GPU Details (NVIDIA)"
+  ansible.builtin.command: nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+  register: nvidia_details
+  changed_when: false
+  failed_when: false
+  when:
+    - hardware_validation_show_details
+    - nvidia_gpu_check is defined
+    - nvidia_gpu_check.rc == 0
+  tags:
+    - hardware_validation
+    - gpu
+
+- name: "GPU: Display NVIDIA Details"
+  ansible.builtin.debug:
+    msg: "{{ nvidia_details.stdout_lines }}"
+  when:
+    - hardware_validation_show_details
+    - nvidia_details is defined
+    - nvidia_details.stdout_lines is defined
+  tags:
+    - hardware_validation
+    - gpu
+
+# ============================================================================
+# SECTION 5: Validation Summary
+# ============================================================================
+
+- name: "Summary: Hardware Validation Complete"
+  ansible.builtin.debug:
+    msg:
+      - "=========================================="
+      - "HARDWARE VALIDATION SUCCESSFUL"
+      - "=========================================="
+      - "CPU: {{ ansible_processor_vcpus }} vCPUs ({{ ansible_processor_cores }} cores)"
+      - "RAM: {{ (ansible_memtotal_mb / 1024) | round(2) }} GB"
+      - "Storage: {{ root_storage_gb.stdout }}GB on root filesystem"
+      - "GPU: {{ 'Required and validated' if hardware_validation_require_gpu else 'Optional (not checked)' }}"
+      - "=========================================="
+  tags:
+    - hardware_validation

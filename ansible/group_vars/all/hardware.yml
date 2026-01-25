@@ -1,19 +1,24 @@
 ---
+# Globale Hardware-Spezifikation (Standard für alle Hosts, kann per host_vars überschrieben werden)
 nova_hardware:
   spec:
-    name: "GMKtec Ryzen 7 8845HS"
+    name: "Mini-PC Server"
     type: "mini_pc"
+    
     cpu:
-      model: "AMD Ryzen 7 8845HS"
+      model: "AMD Ryzen 7 H255"
       cores: 8
       threads: 16
       base_clock: "3.8 GHz"
       boost_clock: "5.1 GHz"
       tdp: 45
       architecture: "Zen 4"
+      features:
+        - "NPU"
+    
     gpu:
-      # Primary integrated GPU details
-      primary:
+      # Primary integrated GPU
+      igpu:
         model: "AMD Radeon 780M"
         type: "integrated"
         compute_units: 12
@@ -29,30 +34,40 @@ nova_hardware:
         model: "NVIDIA GeForce RTX 5060 Ti"
         vram: "16 GB"
         vram_type: "GDDR7"
-        architecture: "Blackwell"
+        architecture: "Blackwell"  # GB206 Chip
         pcie_interface: "PCIe 4.0 x4 (OCuLink)"
         dock: "Minisforum DEG1"
         driver: "nvidia"
         cuda_support: true
         docker_runtime: "nvidia"
-        device_mapping:
-          - "/dev/nvidia0:/dev/nvidia0"
-          - "/dev/nvidiactl:/dev/nvidiactl"
-          - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+        passthrough:
+          enabled: true
+          # PCI-Adressen (Bus:Device.Function) - validiert via lspci
+          pci_id: "0000:01:00.0"
+          audio_pci_id: "0000:01:00.1"
+          # Device-IDs (Vendor:Device) - FÜR VFIO-BINDING
+          pci_device_id: "10de:2d04"
+          audio_device_id: "10de:22eb"
+          # IOMMU-Gruppe (validiert)
+          iommu_group: 17
+          # VFIO-IDs für Kernel-Parameter
+          vfio_ids:
+            - "10de:2d04"  # GPU
+            - "10de:22eb"  # Audio
+        # Docker-Mapping NUR wenn GPU am Host genutzt wird (bei Passthrough LEER!)
+        device_mapping: []
         environment:
           - "NVIDIA_VISIBLE_DEVICES=all"
           - "NVIDIA_DRIVER_CAPABILITIES=compute,utility,video"
         use_cases: ["ai_inference", "training", "cuda_compute", "gaming_vm"]
-        passthrough:
-          enabled: true
-          pci_id: "10de:xxxx"  # To be determined via lspci
-          iommu_group: "TBD"
 
     memory:
       total_gb: 32
       type: "DDR5"
       speed: "5600 MHz"
+      speed_mt_s: 5600
       channels: 2
+    
     storage:
       vm_disk:
         device: "/dev/nvme0n1"

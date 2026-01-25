@@ -1,61 +1,6 @@
 ---
 # Host-spezifische Variablen für pve01
 ssh_key_path: /home/one-nova/.ssh/id_ansible_service.pub
-# optional: default_user: admin
-
-# Hardware-Spezifikation (Fix) – wird u.a. vom gpu_hookscript unterstützt
-nova_hardware:
-  spec:
-    cpu:
-      model: "AMD Ryzen 7 H255"
-      features:
-        - "NPU"
-    ram:
-      size_gb: 32
-      type: "DDR5"
-      speed_mt_s: 5600
-    storage:
-      nvme:
-        vendor: "WD Black"
-        devices:
-          - purpose: "system"
-            size_tb: 1
-          - purpose: "storage"
-            size_tb: 2
-    gpu:
-      igpu:
-        model: "AMD Radeon 780M"
-      egpu:
-        enabled: true
-        model: "NVIDIA GeForce RTX 5060 Ti"
-        vram: "16 GB"
-        vram_type: "GDDR7"
-        architecture: "Blackwell"  # GB206 Chip
-        pcie_interface: "PCIe 4.0 x4 (OCuLink)"
-        dock: "Minisforum DEG1"
-        driver: "nvidia"
-        cuda_support: true
-        docker_runtime: "nvidia"
-        passthrough:
-          enabled: true
-          # PCI-Adressen (Bus:Device.Function)
-          pci_id: "0000:01:00.0"
-          audio_pci_id: "0000:01:00.1"
-          # Device-IDs (Vendor:Device) - FÜR VFIO-BINDING
-          pci_device_id: "10de:2d04"
-          audio_device_id: "10de:22eb"
-          # IOMMU-Gruppe (validiert)
-          iommu_group: 17
-          # VFIO-IDs für Kernel-Parameter
-          vfio_ids:
-            - "10de:2d04"  # GPU
-            - "10de:22eb"  # Audio
-        # Docker-Mapping NUR wenn GPU am Host genutzt wird (bei Passthrough LEER!)
-        device_mapping: []
-        environment:
-          - "NVIDIA_VISIBLE_DEVICES=all"
-          - "NVIDIA_DRIVER_CAPABILITIES=compute,utility,video"
-        use_cases: ["ai_inference", "training", "cuda_compute", "gaming_vm"]
 
 # GPU Hookscript Steuerung
 gpu_vm_id: 101
@@ -78,3 +23,4 @@ proxmox_gpu_passthrough:
     - nvidia
     - nvidia_drm
     - nvidia_modeset
+

@@ -25,6 +25,42 @@
     - provision
     - directories
 
+- name: "Provision (Safety): Sammle vorhandene LXC-Konfigurationsdateien"
+  ansible.builtin.find:
+    paths: /etc/pve/lxc
+    patterns: "*.conf"
+    file_type: file
+  register: lxc_confs
+  tags:
+    - provision
+    - safety
+
+- name: "Provision (Safety): Extrahiere LXC IDs"
+  ansible.builtin.set_fact:
+    lxc_ids: "{{ lxc_confs.files | map(attribute='path') | map('basename') | map('regex_replace','\\.conf$','') | map('int') | list }}"
+  when: lxc_confs is defined
+  tags:
+    - provision
+    - safety
+
+- name: "Provision (Safety): Prüfe auf ID-Überschneidungen mit LXC"
+  ansible.builtin.set_fact:
+    provisioning_overlap: "{{ (guest_vms | map(attribute='vmid') | map('int') | list) | intersect(lxc_ids | default([])) }}"
+  when: lxc_confs is defined
+  tags:
+    - provision
+    - safety
+
+- name: "Provision (Safety): Abbruch bei Überschneidenden IDs"
+  ansible.builtin.assert:
+    that:
+      - provisioning_overlap | length == 0
+    fail_msg: "Verbotene ID-Überschneidung: {{ provisioning_overlap }} - Provisioning würde LXC-Container betreffen"
+  when: lxc_confs is defined
+  tags:
+    - provision
+    - safety
+
 # ============================================================================
 # SECTION 2: Cloud Image Download
 # ============================================================================

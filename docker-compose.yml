@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   # Traefik Reverse Proxy
   traefik:
     image: traefik:v2.11
     container_name: nova-v3-traefik
+    privileged: true
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -28,19 +27,25 @@ services:
 
   # PostgreSQL Database
   db:
-    image: postgres:16-alpine
+    image: postgres:15-alpine
     container_name: nova-v3-db
     environment:
-      POSTGRES_DB: nova_v3
-      POSTGRES_USER: nova
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nova_password}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+    # HIER IST DER TRICK: Leerer String ('') deaktiviert Unix-Sockets komplett.
+    command: postgres -c unix_socket_directories=''
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nova"]
+      # WICHTIG: -h localhost ist PFLICHT, da es keinen Socket mehr gibt.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
     networks:
       - nova-network
     restart: unless-stopped
@@ -51,13 +56,29 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: nova-v3-backend
+    privileged: true
     environment:
       DATABASE_URL: postgresql://nova:${POSTGRES_PASSWORD:-nova_password}@db:5432/nova_v3
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
       DEBUG: ${DEBUG:-false}
+    # GPU reservations commented out for CPU-only run
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    # HIER: Erzwungener Startbefehl mit asyncio-Loop
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
+
+    # Allow unconfined syscalls (fixes seccomp-related build/runtime errors on Proxmox LXC)
+    security_opt:
+      - seccomp:unconfined
+
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     volumes:
       - ./backend/app:/app/app
     healthcheck:
@@ -78,23 +99,39 @@ services:
       - nova-network
     restart: unless-stopped
 
-  # React Frontend
+  # React Frontend (build outside image to avoid esbuild/seccomp issues)
+  frontend-build:
+    image: node:18-bullseye
+    container_name: nova-v3-frontend-build
+    working_dir: /app
+    environment:
+      VITE_API_URL: ${API_URL:-http://localhost/api}
+    volumes:
+      - ./frontend:/app
+      - frontend_dist:/app/dist
+    security_opt:
+      - seccomp=unconfined
+    command: >-
+      sh -c "npm install && npm run build"
+    networks:
+      - nova-network
+    restart: "no"
+
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: nginx:alpine
     container_name: nova-v3-frontend
     depends_on:
       - backend
-    environment:
-      VITE_API_URL: ${API_URL:-http://localhost/api}
+      - frontend-build
+    volumes:
+      - frontend_dist:/usr/share/nginx/html:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`) || Host(`192.168.2.77`)"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       # HTTPS
-      - "traefik.http.routers.frontend-secure.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.frontend-secure.rule=Host(`${DOMAIN:-localhost}`) || Host(`192.168.2.77`)"
       - "traefik.http.routers.frontend-secure.entrypoints=websecure"
       - "traefik.http.routers.frontend-secure.tls.certresolver=letsencrypt"
       # HTTP to HTTPS redirect
@@ -104,10 +141,60 @@ services:
       - nova-network
     restart: unless-stopped
 
+  # AI Service
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile.ai-service
+    container_name: nova-v3-ai-service
+    privileged: true
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # Wir fügen "/app/app" hinzu, damit er den inneren Ordner findet
+      - PYTHONPATH=/app:/app/app
+    # --- DIESEN BLOCK AUSKOMMENTIERT: keine GPU-Reservationen für jetzt (CPU-only) ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    # HIER: Erzwungener Startbefehl mit asyncio-Loop
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
+
+    # Allow unconfined syscalls (fixes seccomp-related build/runtime errors on Proxmox LXC)
+    security_opt:
+      - seccomp:unconfined
+
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-service.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/ai`)"
+      - "traefik.http.routers.ai-service.entrypoints=web"
+      - "traefik.http.services.ai-service.loadbalancer.server.port=8000"
+      # HTTPS
+      - "traefik.http.routers.ai-service-secure.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/ai`)"
+      - "traefik.http.routers.ai-service-secure.entrypoints=websecure"
+      - "traefik.http.routers.ai-service-secure.tls.certresolver=letsencrypt"
+    networks:
+      - nova-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local
   traefik_letsencrypt:
+    driver: local
+  frontend_dist:
     driver: local
 
 networks:

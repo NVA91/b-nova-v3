@@ -73,7 +73,8 @@
       ansible.builtin.include_role:
         name: provision_guests
       tags:
-        - provision_guests
+        - never
+        - provision
 
 # ============================================================================
 # PLAY 3: Docker Setup auf Guest VMs

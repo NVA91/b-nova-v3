@@ -13,5 +13,5 @@ dir_storage: "wd-vm"
 # LXC Docker-Support gezielt aktivieren
 allow_docker_in_lxc: true
 lxc_container_ids:
-	- 100
-	- 105
+  - 100
+  - 105

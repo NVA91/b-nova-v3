@@ -1,7 +1,7 @@
 ---
 # Proxmox Server (Mini-PC mit eGPU)
 
-ansible_host: 192.168.1.100
+ansible_host: 192.168.2.77
 ansible_user: root
 
 # Hardware-Spezifikation
@@ -20,9 +20,9 @@ gpu_vm_id: 100  # VM-ID für GPU-Passthrough
 # Storage-Konfiguration
 system_disk: "/dev/nvme0n1"
 storage_disk: "/dev/nvme1n1"
-zfs_enabled: true
+# Dieser Host nutzt LVM/Directory-Storage (keine ZFS-Pools). Setze explizit false, damit Rollen keine ZFS-Aktionen ausführen. — 2026-01-25
+zfs_enabled: false
 zfs_arc_max: "8G"
-
 # Kernel-Parameter
 kernel_params:
   - "amd_iommu=on"

@@ -3,7 +3,7 @@
 # Führt die grundlegende Systemkonfiguration für Proxmox VE durch
 
 - name: "NOVA v3 - System Setup"
-  hosts: proxmox_servers
+  hosts: pve01
   become: true
   gather_facts: true
 

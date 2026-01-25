@@ -9,7 +9,12 @@ export default function Layout({ children }: LayoutProps) {
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: '📊' },
-    { name: 'Agents', href: '/agents', icon: '🤖' },
+    {
+      name: 'Agents',
+      href: '/agents',
+      iconSrc: '/icons/agent_core.png',
+      iconAlt: 'Agent Core',
+    },
     { name: 'Tasks', href: '/tasks', icon: '📋' },
     { name: 'Settings', href: '/settings', icon: '⚙️' },
   ]
@@ -40,7 +45,15 @@ export default function Layout({ children }: LayoutProps) {
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                   }`}
                 >
-                  <span className="mr-3 text-xl">{item.icon}</span>
+                  {item.iconSrc ? (
+                    <img
+                      src={item.iconSrc}
+                      alt={item.iconAlt}
+                      className="mr-3 h-5 w-5"
+                    />
+                  ) : (
+                    <span className="mr-3 text-xl">{item.icon}</span>
+                  )}
                   {item.name}
                 </Link>
               )

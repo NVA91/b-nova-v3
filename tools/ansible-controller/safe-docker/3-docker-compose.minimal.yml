@@ -1,0 +1,113 @@
+# drei Docker Compose - MINIMAL Profile
+# Nur essentielle Agenten für ersten Start
+# Optimiert für GMKtec + externe Services (Paperless-NGX, etc.)
+
+version: '3.8'
+
+x-common-config: &common-config
+  restart: unless-stopped
+  networks:
+    - nova-network
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # NOVA Core - Orchestrator (Essential)
+  nova-core:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: core
+    container_name: nova-core
+    cpus: "3.0"
+    mem_limit: 3g
+    mem_reservation: 2g
+    cpu_shares: 2048
+    environment:
+      - AGENT_NAME=core
+      - AI_MODEL=gpt-4.1-mini
+      - HARDWARE_PROFILE=gmktec_ryzen7
+      - PROFILE=minimal
+    volumes:
+      - ../agents/core:/app/agent
+      - ../core:/app/core
+      - nova-core-data:/app/data
+    ports:
+      - "8001:8000"
+
+  # DevOps Agent (Essential)
+  nova-devops:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: devops
+    container_name: nova-devops
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=devops
+      - AI_MODEL=gpt-4.1-mini
+      - PROFILE=minimal
+    volumes:
+      - ../agents/devops:/app/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nova-devops-data:/app/data
+    ports:
+      - "8002:8000"
+
+  # Security Agent (Essential)
+  nova-security:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: security
+    container_name: nova-security
+    cpus: "1.5"
+    mem_limit: 1.5g
+    mem_reservation: 1g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=security
+      - AI_MODEL=gpt-4.1-mini
+      - PROFILE=minimal
+    volumes:
+      - ../agents/security:/app/agent
+      - nova-security-data:/app/data
+    ports:
+      - "8003:8000"
+
+networks:
+  nova-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  nova-core-data:
+  nova-devops-data:
+  nova-security-data:
+
+# Resource Summary (Minimal Profile):
+# - Total CPU: 6.5 cores (9.5 cores free for other services)
+# - Total RAM: 6.5 GB (25.5 GB free for other services)
+# - GPU: Not used
+#
+# Recommended for:
+# - First-time setup
+# - Running alongside Paperless-NGX, databases, web servers
+# - Testing and development
+#
+# To add more agents later:
+# docker-compose -f docker-compose.standard.yml up -d

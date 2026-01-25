@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.ai-service
+    image: b-nova-v3/ai-service:latest
+    container_name: b-nova-v3-ai-service
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app:/app
+    # GPU env vars and reservations commented out for CPU-only run
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    #   - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

@@ -1,4 +1,8 @@
-.PHONY: help build up down logs clean test
+.PHONY: help build up down logs clean test deploy
+
+ANSIBLE_HOST ?= pve01
+ANSIBLE_INVENTORY ?= ansible/inventory/hosts.yml
+DEPLOY_PATH ?= /opt/nova-v3
 
 help:
 	@echo "NOVA v3 - Available Commands:"
@@ -8,6 +12,8 @@ help:
 	@echo "  make logs     - Show logs"
 	@echo "  make clean    - Remove all containers and volumes"
 	@echo "  make test     - Run backend tests"
+	@echo "  make deploy   - Sync + rebuild on target host"
+	@echo "  vars: ANSIBLE_HOST, ANSIBLE_INVENTORY, DEPLOY_PATH"
 
 build:
 	docker-compose build
@@ -31,3 +37,7 @@ clean:
 
 test:
 	cd backend && pytest tests/ -v
+
+deploy:
+	ansible $(ANSIBLE_HOST) -i $(ANSIBLE_INVENTORY) -m synchronize -a "src=./ dest=$(DEPLOY_PATH)/ delete=no rsync_opts=--exclude=.git,--exclude=node_modules,--exclude=.venv,--exclude=ansible"
+	ansible $(ANSIBLE_HOST) -i $(ANSIBLE_INVENTORY) -m shell -a "cd $(DEPLOY_PATH) && docker compose down && docker compose build --no-cache frontend && docker compose up -d"

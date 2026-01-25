@@ -1,0 +1,251 @@
+# vier Docker Compose - Hardware Optimized
+# GMKtec Ryzen 7 8845HS (8C/16T, 32GB RAM, Radeon 780M)
+
+version: '3.8'
+
+x-common-config: &common-config
+  restart: unless-stopped
+  networks:
+    - nova-network
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-gpu-config: &gpu-config
+  devices:
+    - /dev/dri:/dev/dri
+    - /dev/kfd:/dev/kfd
+  group_add:
+    - video
+    - render
+  environment:
+    - HSA_OVERRIDE_GFX_VERSION=11.0.0
+    - ROCR_VISIBLE_DEVICES=0
+
+services:
+  # NOVA Core - Orchestrator (High Priority)
+  nova-core:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: core
+    container_name: nova-core
+    cpus: "4.0"
+    mem_limit: 4g
+    mem_reservation: 3g
+    cpu_shares: 2048
+    environment:
+      - AGENT_NAME=core
+      - AI_MODEL=gpt-4.1-mini
+      - HARDWARE_PROFILE=gmktec_ryzen7
+    volumes:
+      - ../agents/core:/app/agent
+      - ../core:/app/core
+      - nova-core-data:/app/data
+    ports:
+      - "8001:8000"
+
+  # DevOps Agent (High Priority)
+  nova-devops:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: devops
+    container_name: nova-devops
+    cpus: "2.0"
+    mem_limit: 3g
+    mem_reservation: 2g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=devops
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/devops:/app/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nova-devops-data:/app/data
+    ports:
+      - "8002:8000"
+
+  # Security Agent (High Priority)
+  nova-security:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: security
+    container_name: nova-security
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=security
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/security:/app/agent
+      - nova-security-data:/app/data
+    ports:
+      - "8003:8000"
+
+  # Research Agent (Medium Priority)
+  nova-research:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: research
+    container_name: nova-research
+    cpus: "2.0"
+    mem_limit: 3g
+    mem_reservation: 2g
+    cpu_shares: 1024
+    environment:
+      - AGENT_NAME=research
+      - AI_MODEL=gemini-2.5-flash
+    volumes:
+      - ../agents/research:/app/agent
+      - nova-research-data:/app/data
+    ports:
+      - "8004:8000"
+
+  # Dev Agent (Medium Priority)
+  nova-dev:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: dev
+    container_name: nova-dev
+    cpus: "2.0"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 1024
+    environment:
+      - AGENT_NAME=dev
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/dev:/app/agent
+      - nova-dev-data:/app/data
+    ports:
+      - "8005:8000"
+
+  # Media Agent (GPU Enabled, Medium Priority)
+  nova-media:
+    <<: *common-config
+    <<: *gpu-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: media
+        GPU_SUPPORT: "true"
+    container_name: nova-media
+    cpus: "2.0"
+    mem_limit: 4g
+    mem_reservation: 3g
+    cpu_shares: 1024
+    environment:
+      - AGENT_NAME=media
+      - AI_MODEL=gpt-4.1-mini
+      - GPU_ENABLED=true
+    volumes:
+      - ../agents/media:/app/agent
+      - nova-media-data:/app/data
+    ports:
+      - "8006:8000"
+
+  # Business Agent (Low Priority)
+  nova-business:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: business
+    container_name: nova-business
+    cpus: "1.0"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 512
+    environment:
+      - AGENT_NAME=business
+      - AI_MODEL=gpt-4.1-nano
+    volumes:
+      - ../agents/business:/app/agent
+      - nova-business-data:/app/data
+    ports:
+      - "8007:8000"
+
+  # Health Agent (Low Priority)
+  nova-health:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: health
+    container_name: nova-health
+    cpus: "1.0"
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpu_shares: 512
+    environment:
+      - AGENT_NAME=health
+      - AI_MODEL=gpt-4.1-nano
+    volumes:
+      - ../agents/health:/app/agent
+      - nova-health-data:/app/data
+    ports:
+      - "8008:8000"
+
+  # AI Agent (GPU Enabled, High Priority)
+  nova-ai:
+    <<: *common-config
+    <<: *gpu-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: ai
+        GPU_SUPPORT: "true"
+    container_name: nova-ai
+    cpus: "3.0"
+    mem_limit: 6g
+    mem_reservation: 4g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=ai
+      - AI_MODEL=gpt-4.1-mini
+      - GPU_ENABLED=true
+    volumes:
+      - ../agents/ai:/app/agent
+      - nova-ai-data:/app/data
+    ports:
+      - "8009:8000"
+
+networks:
+  nova-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  nova-core-data:
+  nova-devops-data:
+  nova-security-data:
+  nova-research-data:
+  nova-dev-data:
+  nova-media-data:
+  nova-business-data:
+  nova-health-data:
+  nova-ai-data:

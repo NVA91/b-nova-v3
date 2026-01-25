@@ -1,0 +1,242 @@
+# ============================================================================
+# ein - Docker Compose Setup
+# Orchestriert alle NOVA-Agenten als Container
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # ============================================================================
+  # NOVA-Core - Orchestrator
+  # ============================================================================
+  nova-core:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.core
+    container_name: nova-core
+    hostname: nova-core
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # API Port
+    volumes:
+      - ../agents:/app/agents:ro
+      - ../prompts:/app/prompts:ro
+      - nova-logs:/app/logs
+    environment:
+      - NOVA_ENV=production
+      - NOVA_LOG_LEVEL=info
+    networks:
+      - nova-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  # ============================================================================
+  # NOVA DevOps - Infrastructure Agent
+  # ============================================================================
+  nova-devops:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: devops
+    container_name: nova-devops
+    hostname: nova-devops
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker access
+      - ../agents/devops:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=devops
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Security - Security Agent
+  # ============================================================================
+  nova-security:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: security
+    container_name: nova-security
+    hostname: nova-security
+    restart: unless-stopped
+    volumes:
+      - ../agents/security:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=security
+      - NOVA_CORE_URL=http://nova-core:8000
+      - VAULT_ADDR=${VAULT_ADDR:-http://vault:8200}
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Research - Analysis Agent
+  # ============================================================================
+  nova-research:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: research
+    container_name: nova-research
+    hostname: nova-research
+    restart: unless-stopped
+    volumes:
+      - ../agents/research:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=research
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Dev - Development Agent
+  # ============================================================================
+  nova-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: dev
+    container_name: nova-dev
+    hostname: nova-dev
+    restart: unless-stopped
+    volumes:
+      - ../agents/dev:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=dev
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Media - Media Agent
+  # ============================================================================
+  nova-media:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: media
+    container_name: nova-media
+    hostname: nova-media
+    restart: unless-stopped
+    volumes:
+      - ../agents/media:/app/agent:ro
+      - nova-media-storage:/app/media
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=media
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Business - Planning Agent
+  # ============================================================================
+  nova-business:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: business
+    container_name: nova-business
+    hostname: nova-business
+    restart: unless-stopped
+    volumes:
+      - ../agents/business:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=business
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA Health - Monitoring Agent
+  # ============================================================================
+  nova-health:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: health
+    container_name: nova-health
+    hostname: nova-health
+    restart: unless-stopped
+    volumes:
+      - ../agents/health:/app/agent:ro
+      - nova-logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # Read-only Docker access
+    environment:
+      - AGENT_ID=health
+      - NOVA_CORE_URL=http://nova-core:8000
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+  
+  # ============================================================================
+  # NOVA AI - AI/Model Agent
+  # ============================================================================
+  nova-ai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_ID: ai
+    container_name: nova-ai
+    hostname: nova-ai
+    restart: unless-stopped
+    volumes:
+      - ../agents/ai:/app/agent:ro
+      - nova-logs:/app/logs
+    environment:
+      - AGENT_ID=ai
+      - NOVA_CORE_URL=http://nova-core:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - nova-network
+    depends_on:
+      - nova-core
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  nova-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  nova-logs:
+    driver: local
+  nova-media-storage:
+    driver: local

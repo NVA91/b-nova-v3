@@ -1,0 +1,192 @@
+# zwei Docker Compose - STANDARD Profile
+# Core + DevOps + Security + Research + Dev + Business + Health
+# Ohne Media & AI (kein GPU benötigt)
+
+version: '3.8'
+
+x-common-config: &common-config
+  restart: unless-stopped
+  networks:
+    - nova-network
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  nova-core:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: core
+    container_name: nova-core
+    cpus: "3.0"
+    mem_limit: 3g
+    mem_reservation: 2g
+    cpu_shares: 2048
+    environment:
+      - AGENT_NAME=core
+      - AI_MODEL=gpt-4.1-mini
+      - PROFILE=standard
+    volumes:
+      - ../agents/core:/app/agent
+      - ../core:/app/core
+      - nova-core-data:/app/data
+    ports:
+      - "8001:8000"
+
+  nova-devops:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: devops
+    container_name: nova-devops
+    cpus: "2.0"
+    mem_limit: 2.5g
+    mem_reservation: 1.5g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=devops
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/devops:/app/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+      - nova-devops-data:/app/data
+    ports:
+      - "8002:8000"
+
+  nova-security:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: security
+    container_name: nova-security
+    cpus: "1.5"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 1536
+    environment:
+      - AGENT_NAME=security
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/security:/app/agent
+      - nova-security-data:/app/data
+    ports:
+      - "8003:8000"
+
+  nova-research:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: research
+    container_name: nova-research
+    cpus: "2.0"
+    mem_limit: 3g
+    mem_reservation: 2g
+    cpu_shares: 1024
+    environment:
+      - AGENT_NAME=research
+      - AI_MODEL=gemini-2.5-flash
+    volumes:
+      - ../agents/research:/app/agent
+      - nova-research-data:/app/data
+    ports:
+      - "8004:8000"
+
+  nova-dev:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: dev
+    container_name: nova-dev
+    cpus: "1.5"
+    mem_limit: 2g
+    mem_reservation: 1g
+    cpu_shares: 1024
+    environment:
+      - AGENT_NAME=dev
+      - AI_MODEL=gpt-4.1-mini
+    volumes:
+      - ../agents/dev:/app/agent
+      - nova-dev-data:/app/data
+    ports:
+      - "8005:8000"
+
+  nova-business:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: business
+    container_name: nova-business
+    cpus: "1.0"
+    mem_limit: 1.5g
+    mem_reservation: 1g
+    cpu_shares: 512
+    environment:
+      - AGENT_NAME=business
+      - AI_MODEL=gpt-4.1-nano
+    volumes:
+      - ../agents/business:/app/agent
+      - nova-business-data:/app/data
+    ports:
+      - "8007:8000"
+
+  nova-health:
+    <<: *common-config
+    build:
+      context: ..
+      dockerfile: docker/Dockerfiles/Dockerfile.agent
+      args:
+        AGENT_NAME: health
+    container_name: nova-health
+    cpus: "0.5"
+    mem_limit: 1g
+    mem_reservation: 512m
+    cpu_shares: 512
+    environment:
+      - AGENT_NAME=health
+      - AI_MODEL=gpt-4.1-nano
+    volumes:
+      - ../agents/health:/app/agent
+      - nova-health-data:/app/data
+    ports:
+      - "8008:8000"
+
+networks:
+  nova-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  nova-core-data:
+  nova-devops-data:
+  nova-security-data:
+  nova-research-data:
+  nova-dev-data:
+  nova-business-data:
+  nova-health-data:
+
+# Resource Summary (Standard Profile):
+# - Total CPU: 11.5 cores (4.5 cores free)
+# - Total RAM: 15 GB (17 GB free)
+# - GPU: Not used
+#
+# Recommended for:
+# - Daily operation
+# - Running with Paperless-NGX and other services
+# - No media processing needed

@@ -1,37 +1,28 @@
-# Build stage
-FROM node:20-alpine as build
+# Wir gehen zurück auf Alpine (klein, schnell und wir können System-Pakete nutzen)
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# TRICK 17: Wir installieren esbuild direkt über das Betriebssystem!
+# Das umgeht den blockierten "spawn sh" Befehl von npm komplett.
+RUN apk add --no-cache esbuild
+
+# WICHTIG: Wir sagen dem System: "Nimm das esbuild, das wir gerade installiert haben!"
+ENV ESBUILD_BINARY_PATH=/usr/bin/esbuild
+
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Wir installieren die JS-Pakete, aber VERBIETEN alle Skripte.
+# Da wir esbuild schon haben, brauchen wir die Skripte nicht!
+RUN npm install --ignore-scripts
 
-# Copy source code
 COPY . .
 
-# Build application
+# Jetzt bauen (Vite nutzt jetzt automatisch das System-Esbuild)
 RUN npm run build
 
-# Production stage
+# --- Nginx Server ---
 FROM nginx:alpine
-
-# Copy built files
-COPY --from=build /app/dist /usr/share/nginx/html
-
-# Copy simple nginx config (Traefik handles routing)
-RUN echo 'server { \
-    listen 80; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
-
-# Expose port
+COPY --from=0 /app/dist /usr/share/nginx/html
 EXPOSE 80
-
 CMD ["nginx", "-g", "daemon off;"]

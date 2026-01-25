@@ -1,0 +1,5 @@
+---
+default:
+  user: ${PROXMOX_USER}@pam
+  password: ${PROXMOX_PASSWORD}
+  verify_ssl: false

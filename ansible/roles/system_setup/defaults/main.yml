@@ -19,7 +19,6 @@ system_setup_packages:
   - proxmox-ve-headers
   - pve-manager
   - pve-firewall
-  - pve-cluster
   - ifupdown2
 
 # Systemkonfiguration

@@ -150,44 +150,23 @@
     - proxmox
 
 # ============================================================================
-# SECTION 4: Proxmox Cluster-Konfiguration
+# SECTION 4: Single-Node Validierung
 # ============================================================================
 
-- name: "Cluster: Validiere Proxmox Installation"
+- name: "Single-Node: Validiere Proxmox Installation"
   ansible.builtin.command:
     cmd: "pveversion"
   register: pve_version
   changed_when: false
   tags:
     - core
-    - cluster
     - proxmox
 
-- name: "Cluster: Zeige Proxmox Version"
+- name: "Single-Node: Zeige Proxmox Version"
   ansible.builtin.debug:
     msg: "Proxmox VE Version: {{ pve_version.stdout }}"
   tags:
     - core
-    - cluster
-    - proxmox
-
-- name: "Cluster: Prüfe Cluster-Status"
-  ansible.builtin.command:
-    cmd: "pvecm status"
-  register: cluster_status
-  changed_when: false
-  failed_when: false
-  tags:
-    - core
-    - cluster
-    - proxmox
-
-- name: "Cluster: Zeige Cluster-Status"
-  ansible.builtin.debug:
-    msg: "{{ cluster_status.stdout_lines }}"
-  tags:
-    - core
-    - cluster
     - proxmox
 
 # ============================================================================
@@ -200,6 +179,6 @@
       - "Core Infrastructure Installation abgeschlossen"
       - "Netzwerk-Bridge (vmbr0) konfiguriert"
       - "Storage-Konfiguration durchgeführt"
-      - "Proxmox Cluster validiert"
+      - "Single-Node Proxmox VE validiert"
   tags:
     - core

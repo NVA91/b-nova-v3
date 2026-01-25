@@ -13,12 +13,6 @@
   async: 30
   poll: 0
 
-- name: restart pve-cluster
-  ansible.builtin.service:
-    name: pve-cluster
-    state: restarted
-  listen: "restart pve-cluster"
-
 - name: restart pve-firewall
   ansible.builtin.service:
     name: pve-firewall

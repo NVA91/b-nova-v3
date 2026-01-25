@@ -322,7 +322,7 @@
     - firewall
     - proxmox
 
-- name: "Firewall: PVE Firewall Cluster-Konfiguration"
+- name: "Firewall: PVE Firewall Verzeichnis (Single-Node)"
   ansible.builtin.file:
     path: /etc/pve/firewall
     state: directory

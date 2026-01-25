@@ -1,0 +1,5 @@
+---
+# Production security settings
+firewall_enabled: true
+ssh_root_login: false
+fail2ban_enabled: true

@@ -1,0 +1,7 @@
+---
+# Production deployment configuration
+deployment_profile: production
+apps_to_deploy:
+  - paperless
+  - postgresql
+  - traefik

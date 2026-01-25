@@ -112,6 +112,23 @@ ansible-playbook site.yml -l app_hosts --tags app,tests -i inventory/hosts.yml
 Notes:
 - The CI pipeline should not run `site.yml` against a real Proxmox host. CI performs `syntax-check` and `ansible-lint`. Only run `--check` against a dummy inventory or dedicated test host.
 
+CI Safety Recommendation:
+- In GitHub Actions run **syntax-check** and **ansible-lint** always.
+- Make `--check/--diff` optional and gated (e.g. only for `develop` and when `RUN_ANSIBLE_CHECK=true`) and use a `tests/dummy-inventory.yml` as target to avoid trying to reach your real Proxmox hosts from the runner.
+- Example workflow snippet:
+
+```yaml
+- name: Ansible syntax-check
+  run: ansible-playbook site.yml --syntax-check -i ansible/inventory/hosts.yml
+
+- name: ansible-lint
+  run: ansible-lint || true
+
+- name: Ansible check-mode (optional)
+  if: github.ref == 'refs/heads/develop' && env.RUN_ANSIBLE_CHECK == 'true'
+  run: ansible-playbook site.yml --check -i tests/dummy-inventory.yml --diff -q || true
+```
+
 
 The `installation_classes.yml` playbook groups installation and configuration tasks into logical classes (Core, Apps, Maintenance).
 

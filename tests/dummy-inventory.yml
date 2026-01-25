@@ -1,0 +1,6 @@
+all:
+  hosts:
+    dummy:
+      ansible_connection: local
+      ansible_host: 127.0.0.1
+      ansible_user: "${USER:-runner}"

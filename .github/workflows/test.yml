@@ -18,14 +18,15 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install Ansible
         run: |
-          python -m pip install --upgrade pip
+          python3 -m pip install --upgrade pip
           pip install ansible ansible-lint
-      - name: Syntax Check
-        run: ansible-playbook site.yml --syntax-check
-      - name: Ansible Lint
-        run: ansible-lint site.yml || true
-      - name: Dry-Run
-        run: ansible-playbook site.yml --check --diff -q || true
+      - name: Ansible syntax-check
+        run: ansible-playbook site.yml --syntax-check -i ansible/inventory/hosts.yml
+      - name: ansible-lint
+        run: ansible-lint || true
+      - name: Ansible check-mode (optional)
+        if: github.ref == 'refs/heads/develop' && env.RUN_ANSIBLE_CHECK == 'true'
+        run: ansible-playbook site.yml --check -i tests/dummy-inventory.yml --diff -q || true
 
   backend:
     runs-on: ubuntu-latest

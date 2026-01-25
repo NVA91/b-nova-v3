@@ -83,6 +83,36 @@ ansible-playbook playbooks/docker_setup.yml -i inventory/hosts.yml
 
 ## 6. Installation Classes Playbook
 
+## 7. App Deployment & Tests (Usage)
+
+Deploy applications and run application tests on a dedicated host group `app_hosts` (a VM/LXC that runs your Docker stacks).
+
+- Add your app host(s) to inventory as `app_hosts` (example below). This should be the VM where docker-compose runs your app stack, *not* the Proxmox management node.
+
+Example inventory snippet (in `ansible/inventory/hosts.yml`):
+
+```yaml
+app_hosts:
+  hosts:
+    nova-app:
+      ansible_host: 192.168.2.100
+      ansible_user: admin
+```
+
+Options:
+- Option A (simple): Add a task block in `app_deployment` that runs the tests when invoked with `--tags tests`.
+- Option B (modular): Include the dedicated role `app_tests` (provided) which runs `tests/run-all-tests.sh` on the app host when you run `--tags tests`.
+
+Invoke in maintenance window:
+
+```bash
+ansible-playbook site.yml -l app_hosts --tags app,tests -i inventory/hosts.yml
+```
+
+Notes:
+- The CI pipeline should not run `site.yml` against a real Proxmox host. CI performs `syntax-check` and `ansible-lint`. Only run `--check` against a dummy inventory or dedicated test host.
+
+
 The `installation_classes.yml` playbook groups installation and configuration tasks into logical classes (Core, Apps, Maintenance).
 
 **Usage:**

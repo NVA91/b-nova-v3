@@ -1,0 +1,11 @@
+---
+# app_tests Role - Run application test suite on app hosts
+
+- name: "App Tests: Run application test suite"
+  ansible.builtin.shell: "bash /opt/nova/tests/run-all-tests.sh"
+  args:
+    chdir: /opt/nova
+  become: true
+  tags:
+    - never
+    - tests

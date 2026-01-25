@@ -149,26 +149,17 @@
     - storage
     - zfs
 
-- name: "Storage: ZFS ARC-Limit setzen (vmpool)"
+- name: "Storage: ZFS ARC-Limit setzen (globaler Wert)"
   ansible.builtin.lineinfile:
     path: /etc/modprobe.d/zfs.conf
     regexp: '^options zfs zfs_arc_max='
-    line: "options zfs zfs_arc_max={{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int * 1024 * 1024 * 1024) }}"
+    line: "options zfs zfs_arc_max={{ zfs_arc_max_bytes }}"
     create: yes
     backup: yes
-  when: zfs_enabled | default(false)
-  tags:
-    - system_setup
-    - storage
-    - zfs
-
-- name: "Storage: ZFS ARC-Limit setzen (tank)"
-  ansible.builtin.lineinfile:
-    path: /etc/modprobe.d/zfs.conf
-    regexp: '^options zfs zfs_arc_max='
-    line: "options zfs zfs_arc_max={{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int * 1024 * 1024 * 1024) }}"
-    create: yes
-    backup: yes
+  vars:
+    vmpool_arc_gb: "{{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int) }}"
+    tank_arc_gb: "{{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int) }}"
+    zfs_arc_max_bytes: "{{ ([vmpool_arc_gb | int, tank_arc_gb | int] | max * 1024 * 1024 * 1024) }}"
   when: zfs_enabled | default(false)
   tags:
     - system_setup

@@ -1,8 +1,20 @@
 # 🔍 NOVA v3 Qualitätsprüfung
 
-**Datum:** 2026-01-17  
+**Letzte Aktualisierung:** 2026-01-25  
 **Version:** v3.0.0-phoenix  
-**Status:** ✅ Production-Ready
+**Status:** ✅ Production-Ready (Stabilisiert: Ansible-Fixes & Frontend/Backend-Updates)
+
+## 🔧 Letzte Änderungen (Kurzüberblick)
+- YYYY-MM-DD → 2026-01-25: YAML-Härtung durchgeführt (Tabs → Spaces) — verhindert Parsing-Fehler in Ansible.
+- Destruktive `copy` Tasks durch `blockinfile` ersetzt (system_setup & weitere Rollen) — keine Überschreibung mehr von `/etc/pve/*`.
+- LXC Docker-Support wird nur noch bei `allow_docker_in_lxc: true` und per `lxc_container_ids` angewendet.
+- `provision_guests` schützt jetzt vor ID-Kollisionen mit LXC und läuft nur per `--tags provision`.
+- Frontend gebaut (`npm install` + `npm run build`) und `frontend/dist/` dem Repo hinzugefügt (für Controller‑Deploy).
+- Backend-Dependencies sind aktualisiert und im venv installiert (sicherheitsrelevante Updates).
+- Git-Repo wurde synchronisiert und Änderungen gepusht (Remote‑Sync abgeschlossen).
+- Hinweis: GitHub Dependabot meldet aktuell noch **1 High**-Vulnerability — empfohlen: zeitnah prüfen.
+
+
 
 ---
 

@@ -9,6 +9,7 @@
 - Destruktive `copy` Tasks durch `blockinfile` ersetzt (system_setup & weitere Rollen) — keine Überschreibung mehr von `/etc/pve/*`.
 - LXC Docker-Support wird nur noch bei `allow_docker_in_lxc: true` und per `lxc_container_ids` angewendet.
 - `provision_guests` schützt jetzt vor ID-Kollisionen mit LXC und läuft nur per `--tags provision`.
+- Docker-Härtung: `privileged: true` aus `traefik`, `backend`, `ai-service` entfernt; stattdessen Least-Privilege (`cap_drop: ALL`, `no-new-privileges`).
 - Frontend gebaut (`npm install` + `npm run build`) und `frontend/dist/` dem Repo hinzugefügt (für Controller‑Deploy).
 - Backend-Dependencies sind aktualisiert und im venv installiert (sicherheitsrelevante Updates).
 - Git-Repo wurde synchronisiert und Änderungen gepusht (Remote‑Sync abgeschlossen).

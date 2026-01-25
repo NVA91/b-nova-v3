@@ -16,6 +16,7 @@
     src: "{{ ssh_key_path }}"
   register: ssh_key_content
   delegate_to: localhost
+  become: false
   run_once: true
   tags:
     - user_management

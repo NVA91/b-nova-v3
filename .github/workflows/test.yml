@@ -52,15 +52,24 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
-      - name: Install dependencies
+      - name: Install backend deps
         run: |
-          pip install -r backend/requirements.txt || true
+          cd backend
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
       - name: Lint
         run: flake8 backend/app --count --select=E9,F63,F7,F82 || true
-      - name: Tests
+      - name: Run backend tests with coverage
         env:
           DATABASE_URL: postgresql://postgres:testpass@localhost/nova_test
-        run: pytest backend/tests/ -v --maxfail=1 || true
+        run: |
+          cd backend
+          pytest --cov=. --cov-report=xml:coverage.xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/coverage.xml
+          flags: backend
 
   frontend:
     runs-on: ubuntu-latest
@@ -110,10 +119,17 @@ jobs:
         run: |
           curl -f http://localhost:8000/api/health || exit 1
           curl -f http://localhost/ || exit 1
+      - name: Install JS deps for integration tests
+        run: |
+          if [ -f tests/package.json ]; then
+            cd tests && npm ci
+          fi
+
       - name: Integration tests
         run: |
           chmod +x tests/run-all-tests.sh
           ./tests/run-all-tests.sh
+
       - name: Logs on failure
         if: failure()
         run: docker-compose logs --tail 100

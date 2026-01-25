@@ -37,21 +37,30 @@ print_section() {
     echo ""
 }
 
-run_test() {
-    local test_name="$1"
-    local test_command="$2"
-    
-    echo -e "${YELLOW}Running: ${test_name}${RESET}"
+run_test_with_timeout() {
+    local name="$1"
+    local cmd="$2"
+    local timeout_sec="${3:-60}"
+
+    echo -e "${YELLOW}Running: ${name}${RESET}"
     echo ""
-    
-    if eval "$test_command"; then
+
+    ((TOTAL_TESTS++))
+
+    if timeout "${timeout_sec}" bash -c "$cmd"; then
         echo ""
-        echo -e "${GREEN}✓ ${test_name} passed${RESET}"
+        echo -e "${GREEN}✓ ${name} passed${RESET}"
+        ((PASSED_TESTS++))
         return 0
     else
         echo ""
-        echo -e "${RED}✗ ${test_name} failed${RESET}"
-        return 1
+        echo -e "${RED}✗ ${name} failed or timed out${RESET}"
+        ((FAILED_TESTS++))
+        echo ""
+        echo -e "${RED}Fail-fast: exiting due to failed test: ${name}${RESET}"
+        echo "  Passed: ${PASSED_TESTS}  Failed: ${FAILED_TESTS}  Total: ${TOTAL_TESTS}"
+        echo ""
+        exit 1
     fi
 }
 
@@ -85,13 +94,7 @@ FAILED_TESTS=0
 
 print_section "1. Startup Simulation & Health Check"
 
-if run_test "Startup Simulation" "node test-startup-simulation.js startup"; then
-    ((PASSED_TESTS++))
-else
-    ((FAILED_TESTS++))
-fi
-
-((TOTAL_TESTS++))
+run_test_with_timeout "Startup Simulation" "node test-startup-simulation.js startup" 60
 
 ################################################################################
 # 2. INTEGRATION TESTS
@@ -99,13 +102,7 @@ fi
 
 print_section "2. Integration Tests"
 
-if run_test "Integration Tests" "node test-integration.js"; then
-    ((PASSED_TESTS++))
-else
-    ((FAILED_TESTS++))
-fi
-
-((TOTAL_TESTS++))
+run_test_with_timeout "Integration Tests" "node test-integration.js" 120
 
 ################################################################################
 # 3. PERFORMANCE TESTS
@@ -113,21 +110,9 @@ fi
 
 print_section "3. Performance Tests"
 
-if run_test "Single Prediction Benchmark" "node test-load-performance.js single"; then
-    ((PASSED_TESTS++))
-else
-    ((FAILED_TESTS++))
-fi
+run_test_with_timeout "Single Prediction Benchmark" "node test-load-performance.js single" 60
 
-((TOTAL_TESTS++))
-
-if run_test "Load Test (10 concurrent, 50 total)" "node test-load-performance.js load 10 50"; then
-    ((PASSED_TESTS++))
-else
-    ((FAILED_TESTS++))
-fi
-
-((TOTAL_TESTS++))
+run_test_with_timeout "Load Test (10 concurrent, 50 total)" "node test-load-performance.js load 10 50" 300
 
 ################################################################################
 # 4. MONITORING TEST
@@ -135,13 +120,7 @@ fi
 
 print_section "4. Health Monitoring"
 
-if run_test "Health Monitoring (30s)" "node test-startup-simulation.js monitor 30000 5000"; then
-    ((PASSED_TESTS++))
-else
-    ((FAILED_TESTS++))
-fi
-
-((TOTAL_TESTS++))
+run_test_with_timeout "Health Monitoring (30s)" "node test-startup-simulation.js monitor 30000 5000" 90
 
 ################################################################################
 # SUMMARY

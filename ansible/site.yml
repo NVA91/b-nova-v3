@@ -94,6 +94,29 @@
         - docker_setup
 
 # ============================================================================
+# PLAY X: App Deployment & Optional Tests (tagged)
+# ============================================================================
+
+- name: "PLAY X: App Deployment and Optional Tests"
+  hosts: app_hosts
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: "Apps: Deployment"
+      ansible.builtin.include_role:
+        name: app_deployment
+      tags:
+        - app
+
+    - name: "Apps: Tests (run explicitly with --tags tests)"
+      ansible.builtin.include_role:
+        name: app_tests
+      tags:
+        - never
+        - tests
+
+# ============================================================================
 # PLAY 4: App Deployment
 # ============================================================================
 

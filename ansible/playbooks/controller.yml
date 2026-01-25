@@ -38,7 +38,7 @@
     # Organizations
     # ========================================================================
     - name: "AWX: Create Organizations"
-      ansible.awx.organization:
+      awx.awx.organization:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         galaxy_credentials: "{{ item.galaxy_credentials | default([]) }}"
@@ -55,7 +55,7 @@
     # Projects
     # ========================================================================
     - name: "AWX: Create Projects"
-      ansible.awx.project:
+      awx.awx.project:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         organization: "{{ item.organization }}"
@@ -77,7 +77,7 @@
     # Inventories
     # ========================================================================
     - name: "AWX: Create Inventories"
-      ansible.awx.inventory:
+      awx.awx.inventory:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         organization: "{{ item.organization }}"
@@ -95,7 +95,7 @@
     # Inventory Sources
     # ========================================================================
     - name: "AWX: Create Inventory Sources"
-      ansible.awx.inventory_source:
+      awx.awx.inventory_source:
         name: "{{ item.name }}"
         inventory: "{{ item.inventory }}"
         source: "{{ item.source }}"
@@ -116,7 +116,7 @@
     # Credentials
     # ========================================================================
     - name: "AWX: Create Credentials"
-      ansible.awx.credential:
+      awx.awx.credential:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         organization: "{{ item.organization }}"
@@ -136,7 +136,7 @@
     # Job Templates
     # ========================================================================
     - name: "AWX: Create Job Templates"
-      ansible.awx.job_template:
+      awx.awx.job_template:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         job_type: "{{ item.job_type }}"
@@ -163,7 +163,7 @@
     # Workflow Templates
     # ========================================================================
     - name: "AWX: Create Workflow Templates"
-      ansible.awx.workflow_job_template:
+      awx.awx.workflow_job_template:
         name: "{{ item.name }}"
         description: "{{ item.description }}"
         organization: "{{ item.organization }}"
@@ -184,7 +184,7 @@
     # Schedules
     # ========================================================================
     - name: "AWX: Create Schedules"
-      ansible.awx.schedule:
+      awx.awx.schedule:
         name: "{{ item.name }}"
         unified_job_template: "{{ item.unified_job_template }}"
         rrule: "{{ item.rrule }}"

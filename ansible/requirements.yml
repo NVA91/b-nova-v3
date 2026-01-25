@@ -4,5 +4,8 @@
 
 collections:
   # AWX/Ansible Tower Collection (required for controller.yml playbook)
-  - name: ansible.awx
-    version: ">=24.6.0"
+  # Installed from GitHub due to Galaxy resolution issues
+  # Alternative: Install from Galaxy when available: ansible.awx:>=21.0.0
+  - name: https://github.com/ansible/awx.git#/awx_collection/
+    type: git
+    version: devel

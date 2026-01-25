@@ -46,7 +46,7 @@ services:
   # AWX Web Interface & API
   # ============================================================================
   awx-web:
-    image: ansible/awx:${AWX_VERSION:-24.6.1}
+    image: ansible/awx:${AWX_VERSION:-23.9.0}
     container_name: awx-web
     depends_on:
       awx-postgres:
@@ -85,7 +85,7 @@ services:
   # AWX Task Manager (Ansible Job Executor)
   # ============================================================================
   awx-task:
-    image: ansible/awx:${AWX_VERSION:-24.6.1}
+    image: ansible/awx:${AWX_VERSION:-23.9.0}
     container_name: awx-task
     depends_on:
       awx-postgres:

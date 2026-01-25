@@ -82,8 +82,10 @@ Nach erfolgreichem AWX-Start:
 
 1. **Installiere AWX-Collection**:
    ```bash
-   ansible-galaxy collection install ansible.awx
+   ansible-galaxy collection install -r ansible/requirements.yml
    ```
+   
+   **Hinweis**: Die Collection wird von GitHub installiert (awx.awx namespace) aufgrund von Versionskonflikten in Galaxy.
 
 2. **Exportiere Credentials** (oder setze in `.env`):
    ```bash

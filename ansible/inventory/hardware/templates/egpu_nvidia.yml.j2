@@ -1,0 +1,12 @@
+# Template: egpu_nvidia.yml.j2
+nova_hardware:
+  spec:
+    egpu:
+      enabled: true
+      model: "{{ egpu.model | default('NVIDIA GeForce') }}"
+      vram: "{{ egpu.vram | default('16 GB') }}"
+      pcie_interface: "{{ egpu.pcie_interface | default('PCIe 4.0 x4') }}"
+      passthrough:
+        pci_id: "{{ egpu.pci_id | default('0000:01:00.0') }}"
+        pci_device_id: "{{ egpu.pci_device_id | default('10de:2d04') }}"
+        audio_pci_id: "{{ egpu.audio_pci_id | default('0000:01:00.1') }}"

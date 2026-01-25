@@ -2,6 +2,17 @@
 # system_setup Role - Proxmox VE Grundkonfiguration
 
 # ============================================================================
+# Preflight: Hardware Validation
+# ============================================================================
+- name: "Preflight: Run hardware validation"
+  ansible.builtin.include_role:
+    name: hardware/hardware_validation
+  when: hardware_validation_enabled | default(true)
+  tags:
+    - hardware_validation
+    - preflight
+
+# ============================================================================
 # SECTION 1: Proxmox Repository Management
 # ============================================================================
 - name: "Proxmox Repos: Enterprise Repository deaktivieren (keine Subscription)"

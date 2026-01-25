@@ -1,0 +1,14 @@
+---
+# VM hardware profile for nova-v3 VMs (defaults for VM creation)
+vm_hardware:
+  cpu:
+    cores: 2
+    threads: 4
+  memory:
+    size_gb: 4
+  disk:
+    size: "50 GB"
+    filesystem: "qcow2"
+  use_cases:
+    - "general"
+    - "small_services"

@@ -1,0 +1,16 @@
+# Template: mini_pc_amd.yml.j2
+nova_hardware:
+  spec:
+    name: "{{ name | default('Mini-PC AMD') }}"
+    type: "mini_pc"
+    cpu:
+      model: "{{ cpu.model | default('AMD Ryzen') }}"
+      cores: {{ cpu.cores | default(8) }}
+      threads: {{ cpu.threads | default(16) }}
+    memory:
+      total_gb: {{ memory.total_gb | default(32) }}
+    storage:
+      vm_disk:
+        device: "{{ storage.vm_disk.device | default('/dev/nvme0n1') }}"
+        size: "{{ storage.vm_disk.size | default('2 TB') }}"
+        zfs_pool: "{{ storage.vm_disk.zfs_pool | default('vmpool') }}"

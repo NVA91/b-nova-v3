@@ -1,0 +1,18 @@
+---
+- name: "Hardware Audit: Run hardware validation and security checks"
+  hosts: proxmox_servers
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: "Run hardware validation"
+      ansible.builtin.include_role:
+        name: hardware/hardware_validation
+      tags:
+        - hardware_validation
+
+    - name: "Run hardware security validation"
+      ansible.builtin.include_role:
+        name: hardware/hardware_security
+      tags:
+        - hardware_security

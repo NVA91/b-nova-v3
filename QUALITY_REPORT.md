@@ -21,6 +21,27 @@
 
 ## 📊 Projekt-Übersicht
 
+## 🧩 Verwendete Hardware (Fix)
+
+### Proxmox Server
+
+**Mini-PC (Host und für eGPU):**
+- Prozessor: AMD Ryzen 7 H255 (mit NPU)
+- Grafik (iGPU): AMD Radeon 780M
+- Arbeitsspeicher: 32 GB DDR5 5600 MT/s
+- Speicher (NVMe PCIe 4.0, WD Black): 1 TB (System) + 2 TB (Storage)
+- Netzwerk: 2 × 2,5 Gbit/s LAN (Realtek 8125BG)
+- Konnektivität: Wi‑Fi 6E, Bluetooth 5.2
+- Mini‑PC mit OCuLink‑Port
+
+**eGPU‑Setup:**
+- eGPU‑Dock: Minisforum DEG1 OCuLink (PCIe Gen4 × 4)
+- GPU (eGPU): NVIDIA RTX 5060 Ti 16 GB
+
+**Wichtiger Hinweis (Finger weg):**
+- XMG Neo M21 mit RTX 3080 (intern) ist der Hauptrechner.
+- Der XMG Neo M21 nutzt in diesem Setup keine eGPU und ist nicht Teil des Proxmox/eGPU‑Setups.
+
 | Kategorie | Status | Details |
 |-----------|--------|---------|
 | **Backend** | ✅ Vollständig | FastAPI, 4 Agenten, PostgreSQL |

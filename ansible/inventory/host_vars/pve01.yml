@@ -26,16 +26,55 @@ nova_hardware:
       igpu:
         model: "AMD Radeon 780M"
       egpu:
-        dock: "Minisforum DEG1 OCuLink (PCIe Gen4 ×4)"
-        model: "NVIDIA RTX 5060 Ti 16GB"
-        # WICHTIG: hier die echten PCI-IDs eintragen (Beispiel):
-        # pci_id: "0000:01:00.0"
-        # audio_pci_id: "0000:01:00.1"
+        enabled: true
+        model: "NVIDIA GeForce RTX 5060 Ti"
+        vram: "16 GB"
+        vram_type: "GDDR7"
+        architecture: "Blackwell"  # GB206 Chip
+        pcie_interface: "PCIe 4.0 x4 (OCuLink)"
+        dock: "Minisforum DEG1"
+        driver: "nvidia"
+        cuda_support: true
+        docker_runtime: "nvidia"
+        passthrough:
+          enabled: true
+          # PCI-Adressen (Bus:Device.Function)
+          pci_id: "0000:01:00.0"
+          audio_pci_id: "0000:01:00.1"
+          # Device-IDs (Vendor:Device) - FÜR VFIO-BINDING
+          pci_device_id: "10de:2d04"
+          audio_device_id: "10de:22eb"
+          # IOMMU-Gruppe (validiert)
+          iommu_group: 17
+          # VFIO-IDs für Kernel-Parameter
+          vfio_ids:
+            - "10de:2d04"  # GPU
+            - "10de:22eb"  # Audio
+        # Docker-Mapping NUR wenn GPU am Host genutzt wird (bei Passthrough LEER!)
+        device_mapping: []
+        environment:
+          - "NVIDIA_VISIBLE_DEVICES=all"
+          - "NVIDIA_DRIVER_CAPABILITIES=compute,utility,video"
+        use_cases: ["ai_inference", "training", "cuda_compute", "gaming_vm"]
 
 # GPU Hookscript Steuerung
-# Setze gpu_vm_id (VMID) + PCI IDs, damit das Hookscript aktiv wird.
-# gpu_vm_id: 105
-# Alternativ zu nova_hardware.* kannst du direkt gpu_pci_ids setzen:
-# gpu_pci_ids:
-#   - "0000:01:00.0"
-#   - "0000:01:00.1"
+gpu_vm_id: 101
+gpu_pci_ids:
+  - "0000:01:00.0"  # NVIDIA RTX 5060 Ti
+  - "0000:01:00.1"  # NVIDIA Audio-Device
+
+# GPU Passthrough Konfiguration für Proxmox Host
+proxmox_gpu_passthrough:
+  kernel_cmdline: "quiet amd_iommu=on iommu=pt vfio-pci.ids=10de:2d04,10de:22eb video=efifb:off"
+  
+  vfio_modules:
+    - vfio
+    - vfio_iommu_type1
+    - vfio_pci
+    - vfio_virqfd
+  
+  blacklist_modules:
+    - nouveau
+    - nvidia
+    - nvidia_drm
+    - nvidia_modeset

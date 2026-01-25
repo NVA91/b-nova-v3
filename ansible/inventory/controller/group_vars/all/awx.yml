@@ -1,0 +1,320 @@
+---
+# AWX Configuration - Single Source of Truth
+# Deklarative Konfiguration für Projekte, Inventories, Credentials und Job-Templates
+
+# ============================================================================
+# AWX Connection Settings
+# ============================================================================
+awx_host: "http://localhost:8080"
+awx_username: "{{ lookup('env', 'AWX_ADMIN_USER') | default('admin') }}"
+awx_password: "{{ lookup('env', 'AWX_ADMIN_PASSWORD') }}"
+awx_validate_certs: false
+
+# ============================================================================
+# Organizations
+# ============================================================================
+awx_organizations:
+  - name: "B-Nova"
+    description: "B-Nova Infrastructure Organization"
+    galaxy_credentials: []
+
+# ============================================================================
+# Projects (Git Repositories)
+# ============================================================================
+awx_projects:
+  - name: "b-nova-v3-production"
+    description: "Production Ansible Repository"
+    organization: "B-Nova"
+    scm_type: git
+    scm_url: "https://github.com/NVA91/b-nova-v3.git"
+    scm_branch: main
+    scm_update_on_launch: true
+    scm_update_cache_timeout: 300
+
+  - name: "b-nova-v3-testing"
+    description: "Testing Branch for Safe Experimentation"
+    organization: "B-Nova"
+    scm_type: git
+    scm_url: "https://github.com/NVA91/b-nova-v3.git"
+    scm_branch: testing
+    scm_update_on_launch: true
+    scm_update_cache_timeout: 300
+
+# ============================================================================
+# Inventories
+# ============================================================================
+awx_inventories:
+  - name: "Production Hosts"
+    description: "Production Proxmox and Guest VMs"
+    organization: "B-Nova"
+    variables:
+      environment_type: production
+
+  - name: "Test Hosts"
+    description: "Isolated Test Environment"
+    organization: "B-Nova"
+    variables:
+      environment_type: testing
+      allow_destructive_operations: true
+
+# ============================================================================
+# Inventory Sources (Import from Git)
+# ============================================================================
+awx_inventory_sources:
+  - name: "Production Inventory"
+    inventory: "Production Hosts"
+    source: scm
+    source_project: "b-nova-v3-production"
+    source_path: "ansible/inventory/hosts.yml"
+    update_on_launch: true
+    overwrite: true
+
+  - name: "Test Inventory"
+    inventory: "Test Hosts"
+    source: scm
+    source_project: "b-nova-v3-testing"
+    source_path: "ansible/inventory/controller/hosts.yml"
+    update_on_launch: true
+    overwrite: true
+
+# ============================================================================
+# Credentials
+# ============================================================================
+awx_credentials:
+  # SSH Key für Proxmox-Zugriff
+  - name: "Ansible Service SSH Key"
+    description: "SSH Key for Ansible automation"
+    organization: "B-Nova"
+    credential_type: "Machine"
+    inputs:
+      username: root
+      ssh_key_data: "{{ lookup('file', '~/.ssh/id_ansible_service') }}"
+      become_method: sudo
+
+  # Ansible Vault Password
+  - name: "Ansible Vault Password"
+    description: "Vault password for encrypted variables"
+    organization: "B-Nova"
+    credential_type: "Vault"
+    inputs:
+      vault_password: "{{ lookup('env', 'ANSIBLE_VAULT_PASSWORD') }}"
+
+  # Git Credentials (optional, für private Repos)
+  - name: "GitHub Deploy Token"
+    description: "GitHub access for private repositories"
+    organization: "B-Nova"
+    credential_type: "Source Control"
+    inputs:
+      username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
+      password: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+
+# ============================================================================
+# Job Templates
+# ============================================================================
+awx_job_templates:
+  # System Setup
+  - name: "System Setup"
+    description: "Configure Proxmox host (system_setup role)"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+      - "Ansible Vault Password"
+    extra_vars:
+      ansible_python_interpreter: /usr/bin/python3
+    ask_tags_on_launch: true
+    tags: system_setup
+    limit: proxmox_servers
+
+  # Hardware Validation
+  - name: "Hardware Validation"
+    description: "Pre-flight checks for CPU/RAM/Storage/GPU"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+    tags: hardware_validation,preflight
+    limit: proxmox_servers
+    verbosity: 1
+
+  # VM Provisioning
+  - name: "Provision VMs"
+    description: "Create and configure guest VMs"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+      - "Ansible Vault Password"
+    tags: provision
+    limit: proxmox_servers
+    ask_variables_on_launch: true
+
+  # Docker Setup
+  - name: "Docker Setup"
+    description: "Install Docker on guest VMs"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+    tags: docker_setup
+    limit: guest_vms
+
+  # App Deployment
+  - name: "App Deployment"
+    description: "Deploy applications via Docker Compose"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+      - "Ansible Vault Password"
+    tags: app_deployment
+    limit: guest_vms
+    ask_variables_on_launch: true
+
+  # QA Smoke Tests
+  - name: "QA Smoke Tests"
+    description: "Run smoke tests on deployed infrastructure"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+    tags: qa_smoke
+    limit: proxmox_servers
+
+  # GPU Hookscript Deployment
+  - name: "Deploy GPU Hookscript"
+    description: "Install GPU passthrough hookscript"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+    tags: gpu_hookscript
+    limit: proxmox_servers
+
+  # Hardware Security Validation
+  - name: "Hardware Security Check"
+    description: "Validate IOMMU and PCI isolation"
+    job_type: run
+    inventory: "Production Hosts"
+    project: "b-nova-v3-production"
+    playbook: "ansible/site.yml"
+    credentials:
+      - "Ansible Service SSH Key"
+    tags: hardware_security
+    limit: proxmox_servers
+    verbosity: 2
+
+# ============================================================================
+# Workflow Templates
+# ============================================================================
+awx_workflow_job_templates:
+  # Full Stack Deployment Workflow
+  - name: "Full Stack Deployment"
+    description: "Complete deployment pipeline with approval gates"
+    organization: "B-Nova"
+    inventory: "Production Hosts"
+    workflow_nodes:
+      # Step 1: Hardware Validation
+      - identifier: hardware_validation
+        unified_job_template: "Hardware Validation"
+        success_nodes:
+          - system_setup
+
+      # Step 2: System Setup
+      - identifier: system_setup
+        unified_job_template: "System Setup"
+        success_nodes:
+          - approval_gate_vms
+
+      # Step 3: Approval Gate
+      - identifier: approval_gate_vms
+        approval_node:
+          name: "Approve VM Provisioning"
+          description: "Review system setup before creating VMs"
+          timeout: 3600
+        success_nodes:
+          - provision_vms
+
+      # Step 4: Provision VMs
+      - identifier: provision_vms
+        unified_job_template: "Provision VMs"
+        success_nodes:
+          - docker_setup
+
+      # Step 5: Docker Setup
+      - identifier: docker_setup
+        unified_job_template: "Docker Setup"
+        success_nodes:
+          - approval_gate_apps
+
+      # Step 6: Approval Gate
+      - identifier: approval_gate_apps
+        approval_node:
+          name: "Approve App Deployment"
+          description: "Review Docker setup before deploying apps"
+          timeout: 3600
+        success_nodes:
+          - app_deployment
+
+      # Step 7: App Deployment
+      - identifier: app_deployment
+        unified_job_template: "App Deployment"
+        success_nodes:
+          - qa_smoke
+
+      # Step 8: QA Smoke Tests
+      - identifier: qa_smoke
+        unified_job_template: "QA Smoke Tests"
+
+  # GPU Passthrough Setup Workflow
+  - name: "GPU Passthrough Setup"
+    description: "Configure GPU passthrough with validation"
+    organization: "B-Nova"
+    inventory: "Production Hosts"
+    workflow_nodes:
+      # Step 1: Hardware Security Check
+      - identifier: hardware_security
+        unified_job_template: "Hardware Security Check"
+        success_nodes:
+          - deploy_hookscript
+
+      # Step 2: Deploy GPU Hookscript
+      - identifier: deploy_hookscript
+        unified_job_template: "Deploy GPU Hookscript"
+        success_nodes:
+          - system_setup_gpu
+
+      # Step 3: System Setup (IOMMU kernel params)
+      - identifier: system_setup_gpu
+        unified_job_template: "System Setup"
+        all_parents_must_converge: true
+
+# ============================================================================
+# Schedules
+# ============================================================================
+awx_schedules:
+  # Daily QA Smoke Tests
+  - name: "Daily QA Smoke Tests"
+    unified_job_template: "QA Smoke Tests"
+    rrule: "DTSTART:20260126T020000Z RRULE:FREQ=DAILY;INTERVAL=1"
+    enabled: true
+
+  # Weekly Hardware Validation
+  - name: "Weekly Hardware Check"
+    unified_job_template: "Hardware Validation"
+    rrule: "DTSTART:20260126T030000Z RRULE:FREQ=WEEKLY;BYDAY=SU"
+    enabled: true

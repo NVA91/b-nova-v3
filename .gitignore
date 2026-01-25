@@ -48,4 +48,9 @@ docker-compose.override.yml
 *.retry
 ansible/inventory/hosts.yml
 ansible/inventory/hosts.ini
+
+# AWX Controller
+environments/controller/.env
+awx-backup-*.sql
+awx-data-*.tar.gz
 .ansible-lint

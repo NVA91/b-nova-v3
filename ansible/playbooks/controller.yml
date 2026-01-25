@@ -1,0 +1,220 @@
+---
+# AWX Controller Configuration Playbook
+# Applies declarative configuration from awx.yml to AWX instance
+
+- name: "Configure AWX Controller"
+  hosts: awx_servers
+  gather_facts: false
+  vars_files:
+    - ../inventory/controller/group_vars/all/awx.yml
+
+  tasks:
+    # ========================================================================
+    # Prerequisites
+    # ========================================================================
+    - name: "Preflight: Verify AWX Collection"
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection list ansible.awx
+      register: awx_collection_check
+      changed_when: false
+      failed_when: false
+
+    - name: "Preflight: Install AWX Collection"
+      ansible.builtin.command:
+        cmd: ansible-galaxy collection install ansible.awx
+      when: awx_collection_check.rc != 0
+
+    - name: "Preflight: Wait for AWX API"
+      ansible.builtin.uri:
+        url: "{{ awx_host }}/api/v2/ping/"
+        validate_certs: "{{ awx_validate_certs }}"
+        status_code: 200
+      register: awx_ping
+      until: awx_ping.status == 200
+      retries: 30
+      delay: 10
+
+    # ========================================================================
+    # Organizations
+    # ========================================================================
+    - name: "AWX: Create Organizations"
+      ansible.awx.organization:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        galaxy_credentials: "{{ item.galaxy_credentials | default([]) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_organizations }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Projects
+    # ========================================================================
+    - name: "AWX: Create Projects"
+      ansible.awx.project:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        organization: "{{ item.organization }}"
+        scm_type: "{{ item.scm_type }}"
+        scm_url: "{{ item.scm_url }}"
+        scm_branch: "{{ item.scm_branch | default('main') }}"
+        scm_update_on_launch: "{{ item.scm_update_on_launch | default(true) }}"
+        scm_update_cache_timeout: "{{ item.scm_update_cache_timeout | default(300) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_projects }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Inventories
+    # ========================================================================
+    - name: "AWX: Create Inventories"
+      ansible.awx.inventory:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        organization: "{{ item.organization }}"
+        variables: "{{ item.variables | default({}) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_inventories }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Inventory Sources
+    # ========================================================================
+    - name: "AWX: Create Inventory Sources"
+      ansible.awx.inventory_source:
+        name: "{{ item.name }}"
+        inventory: "{{ item.inventory }}"
+        source: "{{ item.source }}"
+        source_project: "{{ item.source_project }}"
+        source_path: "{{ item.source_path }}"
+        update_on_launch: "{{ item.update_on_launch | default(true) }}"
+        overwrite: "{{ item.overwrite | default(true) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_inventory_sources }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Credentials
+    # ========================================================================
+    - name: "AWX: Create Credentials"
+      ansible.awx.credential:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        organization: "{{ item.organization }}"
+        credential_type: "{{ item.credential_type }}"
+        inputs: "{{ item.inputs }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_credentials }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true  # Prevent credential leakage
+
+    # ========================================================================
+    # Job Templates
+    # ========================================================================
+    - name: "AWX: Create Job Templates"
+      ansible.awx.job_template:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        job_type: "{{ item.job_type }}"
+        inventory: "{{ item.inventory }}"
+        project: "{{ item.project }}"
+        playbook: "{{ item.playbook }}"
+        credentials: "{{ item.credentials | default([]) }}"
+        extra_vars: "{{ item.extra_vars | default({}) }}"
+        ask_tags_on_launch: "{{ item.ask_tags_on_launch | default(false) }}"
+        ask_variables_on_launch: "{{ item.ask_variables_on_launch | default(false) }}"
+        job_tags: "{{ item.tags | default('') }}"
+        limit: "{{ item.limit | default('') }}"
+        verbosity: "{{ item.verbosity | default(0) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_job_templates }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Workflow Templates
+    # ========================================================================
+    - name: "AWX: Create Workflow Templates"
+      ansible.awx.workflow_job_template:
+        name: "{{ item.name }}"
+        description: "{{ item.description }}"
+        organization: "{{ item.organization }}"
+        inventory: "{{ item.inventory | default(omit) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_workflow_job_templates }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # Note: Workflow nodes require separate configuration via AWX UI or API
+    # due to complex dependency structures
+
+    # ========================================================================
+    # Schedules
+    # ========================================================================
+    - name: "AWX: Create Schedules"
+      ansible.awx.schedule:
+        name: "{{ item.name }}"
+        unified_job_template: "{{ item.unified_job_template }}"
+        rrule: "{{ item.rrule }}"
+        enabled: "{{ item.enabled | default(true) }}"
+        state: present
+        controller_host: "{{ awx_host }}"
+        controller_username: "{{ awx_username }}"
+        controller_password: "{{ awx_password }}"
+        validate_certs: "{{ awx_validate_certs }}"
+      loop: "{{ awx_schedules }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    # ========================================================================
+    # Summary
+    # ========================================================================
+    - name: "Summary: AWX Configuration Complete"
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "AWX CONTROLLER CONFIGURED SUCCESSFULLY"
+          - "=========================================="
+          - "Organizations: {{ awx_organizations | length }}"
+          - "Projects: {{ awx_projects | length }}"
+          - "Inventories: {{ awx_inventories | length }}"
+          - "Credentials: {{ awx_credentials | length }}"
+          - "Job Templates: {{ awx_job_templates | length }}"
+          - "Workflows: {{ awx_workflow_job_templates | length }}"
+          - "Schedules: {{ awx_schedules | length }}"
+          - ""
+          - "Access AWX: {{ awx_host }}"
+          - "Username: {{ awx_username }}"
+          - "=========================================="

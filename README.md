@@ -38,7 +38,9 @@ Mit dem `bootstrap.sh`-Script kannst du NOVA v3 von 0 auf 100 bringen - inklusiv
 ```bash
 ./bootstrap.sh
 ```
+Für Backup/Recovery‑Primitives und Anweisungen zum schnellen Wiederherstellen (inkl. `--backup`/`--recover`) siehe `docs/RECOVERY.md`.
 
+Hinweis: Es gibt einen kleinen Test zur Überprüfung der Dump‑Parsing‑Logik (Version, Rollen, Extensions) unter `tests/dump_parsing_tests.sh` — führe `./tests/dump_parsing_tests.sh` lokal aus, um die Regex-Parsing-Logik zu validieren.
 ## ⚡ Kurz & Knapp — Quick Commands
 
 - App starten: `make up`

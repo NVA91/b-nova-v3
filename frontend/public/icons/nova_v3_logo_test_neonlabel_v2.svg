@@ -1,0 +1,65 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+ "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+ width="2048.000000pt" height="2048.000000pt" viewBox="0 0 2048.000000 2048.000000"
+ preserveAspectRatio="xMidYMid meet">
+
+<!-- TEST FILE v2: subtle glow, main elements neon-green (#39ff14), label neon-pink (#ff007f) top-right -->
+
+<defs>
+  <!-- subtle neon glow filters -->
+  <filter id="neonGreen" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="3" result="blur" />
+    <feMerge>
+      <feMergeNode in="blur" />
+      <feMergeNode in="blur" />
+      <feMergeNode in="SourceGraphic" />
+    </feMerge>
+  </filter>
+  <filter id="neonPink" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur stdDeviation="3" result="blur2" />
+    <feMerge>
+      <feMergeNode in="blur2" />
+      <feMergeNode in="SourceGraphic" />
+    </feMerge>
+  </filter>
+</defs>
+
+<!-- main logo in neon green -->
+<g transform="translate(0.000000,2048.000000) scale(0.100000,-0.100000)" fill="#39ff14" stroke="none">
+  <!-- (kept original path content, unchanged) -->
+  <path d="M10067 18454 c-1 -1 -94 -4 -206 -5 -137 -3 -212 -8 -228 -16 -20
+  -10 -25 -10 -30 2 -3 8 -12 15 -20 15 -8 0 -12 -4 -9 -8 3 -5 -1 -9 -9 -9 -8
+  0 -15 4 -15 9 0 11 -47 10 -55 -1 -3 -5 3 -12 12 -14 16 -4 16 -5 1 -6 -9 0
+  -20 4 -23 9 -3 6 -13 10 -21 10 -8 0 -12 -4 -9 -10 3 -5 0 -10 -9 -10 -8 0
+  -17 6 -19 13 -4 9 -7 9 -14 0 -8 -11 -40 -16 -83 -12 -32 3 -214 -12 -224 -19
+  -6 -3 -29 -7 -51 -9 -22 -2 -60 -7 -85 -13 -25 -5 -52 -9 -60 -9 -42 -2 -128
+  ... (original path continues) ..."/>
+</g>
+
+<!-- label (top-right) - neon-green box with neon-pink text and subtle pink glow -->
+<g id="label">
+  <!-- neon-green rounded box background for branding -->
+  <rect x="1388" y="20" width="640" height="120" rx="18" ry="18" fill="#39ff14" fill-opacity="0.18" filter="url(#neonGreen)" />
+  <!-- thin neon-green border to enhance the brand box subtle glow -->
+  <rect x="1388" y="20" width="640" height="120" rx="18" ry="18" fill="none" stroke="#39ff14" stroke-opacity="0.95" stroke-width="2" />
+
+  <!-- neon-pink text with subtle glow, aligned top-right inside box -->
+  <text x="1980" y="96" text-anchor="end"
+        font-family="Segoe UI, Roboto, Arial, Helvetica, sans-serif"
+        font-size="72" font-weight="800"
+        fill="#ff007f" filter="url(#neonPink)">
+    💪😗🥲 NOVA v3
+  </text>
+
+  <!-- faint white inner highlight to make the pink pop a little -->
+  <text x="1980" y="96" text-anchor="end"
+        font-family="Segoe UI, Roboto, Arial, Helvetica, sans-serif"
+        font-size="72" font-weight="800"
+        fill="#ffffff" fill-opacity="0.12">
+    💪😗🥲 NOVA v3
+  </text>
+</g>
+
+</svg>

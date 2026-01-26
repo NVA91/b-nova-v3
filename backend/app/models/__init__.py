@@ -1,6 +1,6 @@
 """Models package"""
 
-from .image_classifier import ImageClassifier
+"""Models package for backend (keeps minimal test table)"""
 from . import meta  # ensure migration/test table exists for tests
 
-__all__ = ['ImageClassifier', 'meta']
+__all__ = ['meta']

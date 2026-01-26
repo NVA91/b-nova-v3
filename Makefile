@@ -1,52 +1,68 @@
-.PHONY: help build up down logs clean test deploy controller-up controller-down controller-logs controller-ps controller-deps controller-configure
+# Makefile
+.PHONY: help setup start stop restart logs clean build deploy
 
-ANSIBLE_HOST ?= pve01
-ANSIBLE_INVENTORY ?= ansible/inventory/production/hosts.yml
-DEPLOY_PATH ?= /opt/nova-v3
+DOCKER_COMPOSE := docker-compose
+ENV_FILE := .env
 
-help:
-	@echo "NOVA v3 - Available Commands:"
-	@echo "  make build    - Build all Docker images"
-	@echo "  make up       - Start all services"
-	@echo "  make down     - Stop all services"
-	@echo "  make logs     - Show logs"
-	@echo "  make clean    - Remove all containers and volumes"
-	@echo "  make test     - Run backend tests"
-	@echo "  make deploy   - Sync + rebuild on target host"
-	@echo "  make controller-up        - Start AWX controller stack"
-	@echo "  make controller-down      - Stop AWX controller stack"
-	@echo "  make controller-logs      - Tail AWX controller logs"
-	@echo "  make controller-ps        - Show AWX controller status"
-	@echo "  make controller-deps      - Install Ansible collections (incl. awx.awx)"
-	@echo "  make controller-configure - Configure AWX via controller playbook"
-	@echo "  vars: ANSIBLE_HOST, ANSIBLE_INVENTORY, DEPLOY_PATH"
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-build:
-	docker-compose build
+setup: ## Initial setup (copy env, generate secrets)
+	@echo "🔧 Setting up environment..."
+	@if [ ! -f .env ]; then cp .env.example .env; echo "✅ .env created"; fi
+	@mkdir -p traefik/dynamic letsencrypt monitoring/prometheus monitoring/grafana/dashboards
+	@touch traefik/acme.json && chmod 600 traefik/acme.json
+	@echo "✅ Directories created"
 
-up:
-	docker-compose up -d
-	@echo "✅ NOVA v3 is running!"
-	@echo "Frontend: http://localhost"
-	@echo "Backend API: http://localhost:8000"
-	@echo "API Docs: http://localhost:8000/api/docs"
+build: ## Build all Docker images
+	@echo "🏗️  Building images..."
+	$(DOCKER_COMPOSE) build --parallel
 
-down:
-	docker-compose down
+start: ## Start all services
+	@echo "🚀 Starting services..."
+	$(DOCKER_COMPOSE) up -d
+	@sleep 5
+	@$(DOCKER_COMPOSE) ps
 
-logs:
-	docker-compose logs -f
+stop: ## Stop all services
+	@echo "🛑 Stopping services..."
+	$(DOCKER_COMPOSE) down
 
-clean:
-	docker-compose down -v
-	docker system prune -f
+restart: stop start ## Restart all services
 
-test:
-	cd backend && pytest tests/ -v
+logs: ## Show logs (use: make logs SERVICE=backend)
+	$(DOCKER_COMPOSE) logs -f $(SERVICE)
 
-deploy:
-	ansible $(ANSIBLE_HOST) -i $(ANSIBLE_INVENTORY) -m synchronize -a "src=./ dest=$(DEPLOY_PATH)/ delete=no rsync_opts=--exclude=.git,--exclude=node_modules,--exclude=.venv,--exclude=ansible"
-	ansible $(ANSIBLE_HOST) -i $(ANSIBLE_INVENTORY) -m shell -a "cd $(DEPLOY_PATH) && docker compose down && docker compose build --no-cache frontend && docker compose up -d"
+ps: ## Show running containers
+	$(DOCKER_COMPOSE) ps
+
+health: ## Check health of all services
+	@echo "🏥 Health check..."
+	@curl -f http://localhost/health || echo "❌ Frontend down"
+	@curl -f http://localhost:8000/health || echo "❌ Backend down"
+
+clean: ## Remove all containers, volumes, and images
+	@echo "🧹 Cleaning up..."
+	$(DOCKER_COMPOSE) down -v --remove-orphans
+	docker system prune -af --volumes
+
+deploy: setup build start ## Full deployment
+
+monitoring-start: ## Start monitoring stack
+	$(DOCKER_COMPOSE) -f docker-compose.monitoring.yml up -d
+
+monitoring-stop: ## Stop monitoring stack
+	$(DOCKER_COMPOSE) -f docker-compose.monitoring.yml down
+
+backup-db: ## Backup PostgreSQL database
+	@echo "💾 Backing up database..."
+	docker exec ai-db pg_dump -U $(DB_USER) $(DB_NAME) > backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "✅ Backup complete"
+
+restore-db: ## Restore PostgreSQL database (use: make restore-db FILE=backup.sql)
+	@echo "📥 Restoring database..."
+	docker exec -i ai-db psql -U $(DB_USER) $(DB_NAME) < $(FILE)
+	@echo "✅ Restore complete"
 
 controller-up:
 	docker-compose -f environments/controller/docker-compose.yml up -d

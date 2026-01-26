@@ -1,0 +1,84 @@
+# ansible/playbooks/deploy-stack.yml
+---
+- name: Deploy AI-Dashboard Stack on Proxmox
+  hosts: pve01
+  become: true
+  vars:
+    project_name: ai-dashboard
+    project_path: /opt/{{ project_name }}
+    git_repo: https://github.com/yourusername/ai-dashboard.git
+    git_branch: main
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+          - git
+          - htpasswd
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Create project directory
+      file:
+        path: "{{ project_path }}"
+        state: directory
+        mode: '0755'
+
+    - name: Clone repository
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ project_path }}"
+        version: "{{ git_branch }}"
+        force: yes
+
+    - name: Copy environment file
+      copy:
+        src: "{{ project_path }}/.env.example"
+        dest: "{{ project_path }}/.env"
+        remote_src: yes
+        force: no
+
+    - name: Generate secrets
+      shell: |
+        sed -i "s/CHANGE_ME_DB_PASSWORD_MIN_32_CHARS/$(openssl rand -hex 32)/g" {{ project_path }}/.env
+        sed -i "s/CHANGE_ME_REDIS_PASSWORD_MIN_32_CHARS/$(openssl rand -hex 32)/g" {{ project_path }}/.env
+        sed -i "s/CHANGE_ME_SECRET_KEY_MIN_64_CHARS_FOR_JWT/$(openssl rand -hex 64)/g" {{ project_path }}/.env
+      args:
+        executable: /bin/bash
+      when: lookup('file', project_path + '/.env') is search('CHANGE_ME')
+
+    - name: Create Traefik acme.json
+      file:
+        path: "{{ project_path }}/traefik/acme.json"
+        state: touch
+        mode: '0600'
+
+    - name: Build Docker images
+      community.docker.docker_compose:
+        project_src: "{{ project_path }}"
+        build: yes
+        pull: yes
+
+    - name: Start Docker stack
+      community.docker.docker_compose:
+        project_src: "{{ project_path }}"
+        state: present
+        recreate: smart
+
+    - name: Wait for services to be healthy
+      shell: docker ps --filter "status=running" --filter "health=healthy" --format "{{.Names}}" | wc -l
+      register: healthy_count
+      until: healthy_count.stdout | int >= 5
+      retries: 10
+      delay: 10
+
+    - name: Show deployment status
+      shell: docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      register: docker_status
+
+    - name: Display result
+      debug:
+        msg: "{{ docker_status.stdout_lines }}"

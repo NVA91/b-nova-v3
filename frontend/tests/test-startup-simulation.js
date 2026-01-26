@@ -6,7 +6,7 @@
  * bis der Service vollständig bereit ist.
  */
 
-const http = require('http');
+// Use Fetch API (Node 18+) instead of the old http client
 
 // ============================================================================
 // CONFIGURATION
@@ -46,44 +46,24 @@ function colorize(text, color) {
 /**
  * Make HTTP request with timeout
  */
-function makeRequest(url, timeout = CONFIG.timeout) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    
-    const req = http.request({
-      hostname: urlObj.hostname,
-      port: urlObj.port || 80,
-      path: urlObj.pathname,
-      method: 'GET',
-      timeout: timeout,
-    }, (res) => {
-      let data = '';
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          resolve({ status: res.statusCode, data: parsed });
-        } catch (e) {
-          resolve({ status: res.statusCode, data: data });
-        }
-      });
-    });
-    
-    req.on('error', (err) => {
-      reject(err);
-    });
-    
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-    
-    req.end();
-  });
+async function makeRequest(url, timeout = CONFIG.timeout) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text);
+      return { status: res.status, data: parsed };
+    } catch (e) {
+      return { status: res.status, data: text };
+    }
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
 }
 
 /**

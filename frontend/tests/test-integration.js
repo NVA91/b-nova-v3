@@ -5,9 +5,8 @@
  * Comprehensive integration tests for all endpoints
  */
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // ============================================================================
 // CONFIGURATION
@@ -110,46 +109,28 @@ class TestSuite {
 // HTTP HELPERS
 // ============================================================================
 
-function makeRequest(url, options = {}, data = null) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    
-    const req = http.request({
-      hostname: urlObj.hostname,
-      port: urlObj.port || 80,
-      path: urlObj.pathname,
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      timeout: CONFIG.timeout,
-    }, (res) => {
-      let responseData = '';
-      
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseData);
-          resolve({ status: res.statusCode, data: parsed, raw: responseData });
-        } catch (e) {
-          resolve({ status: res.statusCode, data: null, raw: responseData });
-        }
-      });
-    });
-    
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-    
-    if (data) {
-      req.write(data);
+async function makeRequest(url, options = {}, data = null) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), CONFIG.timeout);
+
+  const method = options.method || 'GET';
+  const headers = options.headers || {};
+  const body = data || undefined;
+
+  try {
+    const res = await fetch(url, { method, headers, body, signal: controller.signal });
+    clearTimeout(id);
+    const raw = await res.text();
+    try {
+      const parsed = JSON.parse(raw);
+      return { status: res.status, data: parsed, raw };
+    } catch (e) {
+      return { status: res.status, data: null, raw };
     }
-    
-    req.end();
-  });
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
 }
 
 function generateBoundary() {

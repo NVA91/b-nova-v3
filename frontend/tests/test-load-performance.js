@@ -5,9 +5,8 @@
  * Tests service performance under various load conditions
  */
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // ============================================================================
 // CONFIGURATION
@@ -70,47 +69,28 @@ function buildMultipartData(filePath, boundary) {
   return Buffer.concat(parts);
 }
 
-function makeRequest(url, options, data) {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const client = http;
-    
-    const req = client.request({
-      hostname: urlObj.hostname,
-      port: urlObj.port || 80,
-      path: urlObj.pathname,
-      method: options.method || 'GET',
-      headers: options.headers || {},
-      timeout: CONFIG.timeout,
-    }, (res) => {
-      let responseData = '';
-      
-      res.on('data', (chunk) => {
-        responseData += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(responseData);
-          resolve({ status: res.statusCode, data: parsed });
-        } catch (e) {
-          resolve({ status: res.statusCode, data: responseData });
-        }
-      });
-    });
-    
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-    
-    if (data) {
-      req.write(data);
+async function makeRequest(url, options = {}, data = null) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), CONFIG.timeout);
+
+  const method = options.method || 'GET';
+  const headers = options.headers || {};
+  const body = data || undefined;
+
+  try {
+    const res = await fetch(url, { method, headers, body, signal: controller.signal });
+    clearTimeout(id);
+    const text = await res.text();
+    try {
+      const parsed = JSON.parse(text);
+      return { status: res.status, data: parsed };
+    } catch (e) {
+      return { status: res.status, data: text };
     }
-    
-    req.end();
-  });
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
 }
 
 // ============================================================================

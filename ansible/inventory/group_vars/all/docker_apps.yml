@@ -1,0 +1,7 @@
+docker_apps:
+  - name: traefik
+    compose_file: traefik.yml
+  - name: paperless
+    compose_file: paperless.yml
+  - name: n8n
+    compose_file: n8n.yml

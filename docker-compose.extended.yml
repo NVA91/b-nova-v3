@@ -1,0 +1,306 @@
+# NOVA v3 - Extended Services Stack
+# Erweitert den Haupt-Stack um Automatisierung, Monitoring und Infrastruktur-Services
+# 
+# Verwendung:
+#   docker-compose -f docker-compose.yml -f docker-compose.extended.yml up -d
+#
+# Oder via Makefile:
+#   make up-extended
+
+services:
+  # ============================================================================
+  # AUTOMATISIERUNGS-SERVICES
+  # ============================================================================
+
+  # N8N Workflow Automation
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: nova-v3-n8n
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
+      - N8N_HOST=${N8N_HOST:-n8n.localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://${DOMAIN:-localhost}/n8n/
+      - GENERIC_TIMEZONE=Europe/Berlin
+      - TZ=Europe/Berlin
+      # PostgreSQL-Verbindung (optional, nutzt SQLite per Default)
+      - DB_TYPE=${N8N_DB_TYPE:-postgresdb}
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${N8N_DB_NAME:-n8n}
+      - DB_POSTGRESDB_USER=${N8N_DB_USER:-n8n}
+      - DB_POSTGRESDB_PASSWORD=${N8N_DB_PASSWORD:-n8n_password}
+      # Telegram Bot Integration
+      - N8N_TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - n8n_files:/files
+    security_opt:
+      - seccomp:unconfined
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/n8n`)"
+      - "traefik.http.routers.n8n.entrypoints=web"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      # Middleware: Strip /n8n prefix
+      - "traefik.http.middlewares.n8n-stripprefix.stripprefix.prefixes=/n8n"
+      - "traefik.http.routers.n8n.middlewares=n8n-stripprefix"
+      # HTTPS
+      - "traefik.http.routers.n8n-secure.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/n8n`)"
+      - "traefik.http.routers.n8n-secure.entrypoints=websecure"
+      - "traefik.http.routers.n8n-secure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.n8n-secure.middlewares=n8n-stripprefix"
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # Telegram Voice Assistant Service
+  telegram-voice-assistant:
+    build:
+      context: ./services/telegram-voice-assistant
+      dockerfile: Dockerfile
+    container_name: nova-v3-telegram-voice
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
+      - DOCUMENT_TEMPLATE_PATH=/app/templates
+      - OUTPUT_PATH=/app/output
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Backend-Integration
+      - BACKEND_API_URL=http://backend:8000/api
+      - AI_SERVICE_URL=http://ai-service:8000
+    volumes:
+      - telegram_voice_data:/app/data
+      - telegram_voice_output:/app/output
+      - telegram_voice_templates:/app/templates
+    security_opt:
+      - seccomp:unconfined
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - backend
+      - ai-service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # MONITORING-SERVICES
+  # ============================================================================
+
+  # Prometheus - Metriken-Sammlung
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nova-v3-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      # Basic Auth für Prometheus
+      - "traefik.http.middlewares.prometheus-auth.basicauth.users=${PROMETHEUS_AUTH:-admin:$$apr1$$8EVjn/nj$$GiLUZqcbueTFeD23SuB6x0}"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-auth"
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # Grafana - Monitoring Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nova-v3-grafana
+    environment:
+      - GF_SERVER_ROOT_URL=http://${DOMAIN:-localhost}/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-worldmap-panel
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      # HTTPS
+      - "traefik.http.routers.grafana-secure.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana-secure.entrypoints=websecure"
+      - "traefik.http.routers.grafana-secure.tls.certresolver=letsencrypt"
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # Node Exporter - System-Metriken
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: nova-v3-node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # cAdvisor - Container-Metriken
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: nova-v3-cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # Blackbox Exporter - Netzwerk-Monitoring (HTTP/HTTPS/TCP/ICMP)
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: nova-v3-blackbox-exporter
+    command:
+      - '--config.file=/config/blackbox.yml'
+    volumes:
+      - ./monitoring/blackbox/blackbox.yml:/config/blackbox.yml:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW  # Für ICMP Ping
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # INFRASTRUKTUR-SERVICES
+  # ============================================================================
+
+  # WireGuard VPN Server
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: nova-v3-wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - SERVERURL=${WIREGUARD_SERVERURL:-auto}
+      - SERVERPORT=${WIREGUARD_PORT:-51820}
+      - PEERS=${WIREGUARD_PEERS:-1}
+      - PEERDNS=${WIREGUARD_PEERDNS:-auto}
+      - INTERNAL_SUBNET=${WIREGUARD_SUBNET:-10.13.13.0}
+      - ALLOWEDIPS=${WIREGUARD_ALLOWEDIPS:-0.0.0.0/0}
+    volumes:
+      - wireguard_config:/config
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "${WIREGUARD_PORT:-51820}:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - nova-network
+    restart: unless-stopped
+
+volumes:
+  # N8N
+  n8n_data:
+    driver: local
+  n8n_files:
+    driver: local
+  
+  # Telegram Voice Assistant
+  telegram_voice_data:
+    driver: local
+  telegram_voice_output:
+    driver: local
+  telegram_voice_templates:
+    driver: local
+  
+  # Monitoring
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  
+  # VPN
+  wireguard_config:
+    driver: local
+
+# Netzwerk wird vom Haupt-Stack übernommen
+networks:
+  nova-network:
+    external: true

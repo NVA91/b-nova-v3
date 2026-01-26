@@ -1,0 +1,20 @@
+---
+- name: Stelle sicher, dass Docker installiert ist
+  include_role:
+    name: core/docker_setup
+
+- name: Deploye Anwendungen per Docker Compose
+  ansible.builtin.copy:
+    src: "files/{{ item.compose_file }}"
+    dest: "/opt/{{ item.name }}/docker-compose.yml"
+  loop: "{{ docker_apps }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Starte Docker-Container
+  community.docker.docker_compose:
+    project_src: "/opt/{{ item.name }}"
+    state: present
+  loop: "{{ docker_apps }}"
+  loop_control:
+    label: "{{ item.name }}"

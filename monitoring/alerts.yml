@@ -1,0 +1,133 @@
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU-Auslastung
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Hohe CPU-Auslastung auf {{ $labels.instance }}"
+          description: "CPU-Auslastung ist bei {{ $value }}% (Schwellwert: 80%)"
+
+      # Speicher-Auslastung
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Hohe Speicher-Auslastung auf {{ $labels.instance }}"
+          description: "Speicher-Auslastung ist bei {{ $value }}% (Schwellwert: 85%)"
+
+      # Festplatten-Auslastung
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "Hohe Festplatten-Auslastung auf {{ $labels.instance }}"
+          description: "Festplatte {{ $labels.mountpoint }} ist zu {{ $value }}% voll"
+
+  - name: container_alerts
+    interval: 30s
+    rules:
+      # Container gestoppt
+      - alert: ContainerDown
+        expr: up{job=~"backend|ai-service|n8n|grafana"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: container
+        annotations:
+          summary: "Container {{ $labels.job }} ist down"
+          description: "Der Container {{ $labels.job }} antwortet nicht mehr"
+
+      # Container hohe CPU
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total{name!=""}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: container
+        annotations:
+          summary: "Container {{ $labels.name }} hat hohe CPU-Last"
+          description: "Container nutzt {{ $value }} CPU-Kerne"
+
+      # Container hoher Speicher
+      - alert: ContainerHighMemory
+        expr: container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: container
+        annotations:
+          summary: "Container {{ $labels.name }} hat hohe Speicher-Auslastung"
+          description: "Container nutzt {{ $value | humanizePercentage }} des Limits"
+
+  - name: network_alerts
+    interval: 30s
+    rules:
+      # HTTP Endpoint nicht erreichbar
+      - alert: EndpointDown
+        expr: probe_success{probe_type="http"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: network
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} ist nicht erreichbar"
+          description: "HTTP-Probe fehlgeschlagen für {{ $labels.instance }}"
+
+      # Hohe HTTP-Latenz
+      - alert: HighHTTPLatency
+        expr: probe_http_duration_seconds{probe_type="http"} > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "Hohe Latenz für {{ $labels.instance }}"
+          description: "HTTP-Antwortzeit: {{ $value }}s (Schwellwert: 2s)"
+
+      # ICMP Ping fehlgeschlagen
+      - alert: HostUnreachable
+        expr: probe_success{probe_type="icmp"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "Host {{ $labels.instance }} nicht erreichbar"
+          description: "ICMP-Ping fehlgeschlagen"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # Hohe Fehlerrate im Backend
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: application
+        annotations:
+          summary: "Hohe Fehlerrate im Backend"
+          description: "{{ $value }} 5xx-Fehler pro Sekunde"
+
+      # Datenbank-Verbindungsfehler
+      - alert: DatabaseConnectionError
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL nicht erreichbar"
+          description: "Datenbank-Verbindung fehlgeschlagen"

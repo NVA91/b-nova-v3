@@ -1,0 +1,135 @@
+# Prometheus Configuration für NOVA v3
+# Monitoring: Services, Container, System, Netzwerk
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'b-nova-v3'
+    environment: 'production'
+
+# Alertmanager (optional, für Zukunft)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Alert-Regeln laden
+rule_files:
+  - 'alerts.yml'
+
+# Scrape-Konfigurationen
+scrape_configs:
+  # Prometheus selbst
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Node Exporter - System-Metriken
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          type: 'system'
+
+  # cAdvisor - Container-Metriken
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          type: 'container'
+
+  # Backend API
+  - job_name: 'backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: 'backend'
+          component: 'api'
+
+  # AI Service
+  - job_name: 'ai-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['ai-service:8000']
+        labels:
+          service: 'ai-service'
+          component: 'ai'
+
+  # PostgreSQL Exporter (wenn installiert)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgres'
+  #         type: 'database'
+
+  # Traefik Metrics
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+        labels:
+          service: 'traefik'
+          component: 'proxy'
+
+  # N8N (wenn Metrics aktiviert)
+  - job_name: 'n8n'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['n8n:5678']
+        labels:
+          service: 'n8n'
+          component: 'automation'
+
+  # Blackbox Exporter - Netzwerk-Monitoring (HTTP/HTTPS/TCP/ICMP)
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://backend:8000/health
+          - http://ai-service:8000/health
+          - http://n8n:5678/healthz
+          - http://grafana:3000/api/health
+        labels:
+          probe_type: 'http'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Blackbox Exporter - ICMP (Ping)
+  - job_name: 'blackbox-icmp'
+    metrics_path: /probe
+    params:
+      module: [icmp]
+    static_configs:
+      - targets:
+          - 8.8.8.8        # Google DNS
+          - 1.1.1.1        # Cloudflare DNS
+          - 192.168.2.1    # Gateway (anpassen!)
+        labels:
+          probe_type: 'icmp'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Docker Daemon Metrics (falls aktiviert)
+  # - job_name: 'docker'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:9323']
+  #       labels:
+  #         service: 'docker'

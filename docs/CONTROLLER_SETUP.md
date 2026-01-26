@@ -13,6 +13,16 @@ Provide a secure, isolated Controller environment for testing and automation usi
 
 ## Quickstart (recommended)
 
+Kurz & Knapp (2 Befehle):
+
+```bash
+cd environments/controller
+cp .env.example .env   # setze AWX_SECRET_KEY, AWX_ADMIN_PASSWORD, POSTGRES_PASSWORD
+make controller-up
+```
+
+Mehr: `docs/QUICKSTART.md`
+
 1. Copy .env example:
 
    ```bash

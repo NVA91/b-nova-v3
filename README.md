@@ -39,6 +39,15 @@ Mit dem `bootstrap.sh`-Script kannst du NOVA v3 von 0 auf 100 bringen - inklusiv
 ./bootstrap.sh
 ```
 
+## ⚡ Kurz & Knapp — Quick Commands
+
+- App starten: `make up`
+- App stoppen: `make down`
+- AWX Controller starten: `make controller-up`
+- AWX Controller konfigurieren: `make controller-configure`
+- Schnelltests (Runner): `AI_SERVICE_URL="http://localhost:8000" TEST_IMAGE="./tests/test-image.jpg" bash tests/run-all-tests.sh`
+
+
 ## 🚀 Manueller Quickstart
 
 ### Voraussetzungen
@@ -87,6 +96,8 @@ make up
 - `make controller-down`: Stoppt den AWX-Controller Stack
 - `make controller-deps`: Installiert Ansible Collections (inkl. `awx.awx`)
 - `make controller-configure`: Konfiguriert AWX via Controller-Playbook
+
+Mehr: `docs/QUICKSTART.md`
 
 ## 🧰 Controller (AWX) Quickstart
 

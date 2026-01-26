@@ -50,6 +50,16 @@ Kompletter AWX-Stack:
 
 ## 🚀 Setup und Inbetriebnahme
 
+Kurz & Knapp (2 Befehle):
+
+```bash
+cd environments/controller
+cp .env.example .env   # .env: setze AWX_SECRET_KEY, AWX_ADMIN_PASSWORD, POSTGRES_PASSWORD
+make controller-up
+```
+
+Mehr: `docs/QUICKSTART.md`
+
 ### Schritt 1: Umgebungsvariablen konfigurieren
 
 ```bash

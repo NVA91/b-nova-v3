@@ -99,6 +99,9 @@ make up
 
 Mehr: `docs/QUICKSTART.md`
 
+[![Run Test Runner](https://github.com/NVA91/b-nova-v3/actions/workflows/runner-dispatch.yml/badge.svg)](https://github.com/NVA91/b-nova-v3/actions/workflows/runner-dispatch.yml)  
+*Run Test Runner (manual)*
+
 ## 🧰 Controller (AWX) Quickstart
 
 Der Controller ist eine isolierte AWX-Sandbox (Web + Task + Postgres + Redis) mit Read-only Projekt-Mount und SSH-Key-Passthrough.

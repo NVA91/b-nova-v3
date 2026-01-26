@@ -54,6 +54,9 @@ Schnelltest (lokal):
 AI_SERVICE_URL="http://localhost:8000" TEST_IMAGE="./tests/test-image.jpg" bash tests/run-all-tests.sh
 ```
 
+[![Run Test Runner](https://github.com/NVA91/b-nova-v3/actions/workflows/runner-dispatch.yml/badge.svg)](https://github.com/NVA91/b-nova-v3/actions/workflows/runner-dispatch.yml)  
+*Run Test Runner (manual)*
+
 Hinweis: Der Runner prüft Health, Integration und Performance-Tests in Reihenfolge (Fail-Fast).
 
 ---

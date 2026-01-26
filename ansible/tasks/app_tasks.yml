@@ -1,0 +1,3 @@
+- name: Installiere Applikationen
+  include_role:
+    name: apps/app_deployment

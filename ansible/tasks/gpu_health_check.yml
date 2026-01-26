@@ -1,0 +1,42 @@
+- name: Prüfe ob eGPU aktiviert ist
+  ansible.builtin.assert:
+    that:
+      - hardware_profile.gpu.egpu.enabled | default(false)
+    fail_msg: "eGPU ist laut Hardwareprofil nicht aktiviert!"
+  when: hardware_profile.gpu.egpu is defined
+
+- name: Prüfe NVIDIA Treiber ist installiert
+  ansible.builtin.shell: which nvidia-smi
+  register: nvidia_driver_check
+  failed_when: nvidia_driver_check.rc != 0
+  changed_when: false
+
+- name: Lese NVIDIA GPU Informationen
+  ansible.builtin.shell: |
+    nvidia-smi --query-gpu=name,pci.device_id,temperature.gpu --format=csv,noheader,nounits
+  register: gpu_info
+  changed_when: false
+
+- name: Splitte GPU-Infos in Variablen
+  set_fact:
+    gpu_model: "{{ gpu_info.stdout_lines[0].split(',')[0] | trim }}"
+    gpu_pci_id: "{{ '10de:' ~ gpu_info.stdout_lines[0].split(',')[1] | trim }}"
+    gpu_temp: "{{ gpu_info.stdout_lines[0].split(',')[2] | int }}"
+
+- name: Validierung: GPU-Modell ist RTX 5060 Ti (nicht 3080!)
+  ansible.builtin.assert:
+    that:
+      - "'RTX 5060 Ti' in gpu_model"
+    fail_msg: "⚠️ Falsches GPU-Modell erkannt: {{ gpu_model }}. RTX 3080 oder andere GPUs dürfen NICHT verwendet werden!"
+
+- name: Validierung: PCI-ID passt zum Hardwareprofil
+  ansible.builtin.assert:
+    that:
+      - gpu_pci_id == hardware_profile.gpu.egpu.pci_id
+    fail_msg: "PCI-ID stimmt nicht überein: {{ gpu_pci_id }} ≠ {{ hardware_profile.gpu.egpu.pci_id }}"
+
+- name: Abbruch wenn GPU überhitzt (>85°C)
+  ansible.builtin.assert:
+    that:
+      - gpu_temp < 85
+    fail_msg: "GPU zu heiß: {{ gpu_temp }}°C"

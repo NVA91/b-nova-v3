@@ -1,0 +1,14 @@
+---
+- name: Stelle sicher, dass Proxmox API verfügbar ist
+  uri:
+    url: "https://{{ inventory_hostname }}:8006/api2/json"
+    method: GET
+    validate_certs: no
+  register: proxmox_api_status
+  failed_when: proxmox_api_status.status != 200
+
+- name: Provisioniere neue Guests laut Hardware-Definition
+  include_role:
+    name: core/provision_guests
+  vars:
+    guest_definitions: "{{ hardware_profile.lxc_containers }}"

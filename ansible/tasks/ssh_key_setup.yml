@@ -1,0 +1,14 @@
+---
+- name: Stelle sicher, dass SSH-Verzeichnis existiert
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.ssh"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: Füge öffentlichen SSH-Key hinzu
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    key: "{{ lookup('file', 'files/id_rsa.pub') }}"

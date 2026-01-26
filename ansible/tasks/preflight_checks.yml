@@ -1,0 +1,12 @@
+- name: Stelle sicher, dass Ziel erreichbar ist (Ping)
+  ansible.builtin.ping:
+
+- name: Validierung: OS ist Linux
+  ansible.builtin.assert:
+    that:
+      - ansible_system == "Linux"
+    fail_msg: "Nur Linux-basierte Systeme werden unterstützt!"
+
+- name: Lade Hostname aus Inventory zur Bestätigung
+  ansible.builtin.debug:
+    msg: "Preflight OK für Host {{ inventory_hostname }}"

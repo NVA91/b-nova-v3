@@ -1,0 +1,11 @@
+- name: Prüfe SMART-Status der System-SSD (nvme2n1)
+  shell: smartctl -H /dev/nvme2n1
+  register: smart_result
+  failed_when: false
+  changed_when: false
+
+- name: Warnung bei nicht-PASSED SMART
+  ansible.builtin.assert:
+    that:
+      - "'PASSED' in smart_result.stdout"
+    fail_msg: "⚠️ SMART-Status NICHT OK: {{ smart_result.stdout }}"

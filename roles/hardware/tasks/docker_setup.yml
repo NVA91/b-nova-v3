@@ -1,0 +1,11 @@
+---
+- name: Prüfe, ob Host für Docker freigegeben ist
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in hardware_profile.lxc_containers.docker_enabled
+    fail_msg: "Host {{ inventory_hostname }} ist nicht für Docker markiert!"
+  when: hardware_profile.lxc_containers.docker_enabled is defined
+
+- name: Installiere Docker Engine
+  include_role:
+    name: core/docker_setup

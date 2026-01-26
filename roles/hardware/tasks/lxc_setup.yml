@@ -1,0 +1,32 @@
+---
+- name: Prüfe definierte LXC-Container-IDs
+  ansible.builtin.assert:
+    that:
+      - hardware_profile.lxc_containers is defined
+      - hardware_profile.lxc_containers.docker_enabled | length > 0
+    fail_msg: "Keine gültigen LXC-Container-Definitionen gefunden"
+
+- name: Erstelle LXC-Container, falls nicht vorhanden
+  community.general.proxmox:
+    api_user: "{{ proxmox_user }}"
+    api_password: "{{ proxmox_password }}"
+    api_host: "{{ inventory_hostname }}"
+    vmid: "{{ item }}"
+    hostname: "lxc-{{ item }}"
+    ostemplate: local:vztmpl/debian-11-standard_11.6-1_amd64.tar.gz
+    password: secret
+    cores: 2
+    memory: 2048
+    netif: '{"net0":"name=eth0,bridge=vmbr0,ip=dhcp,tag=20"}'
+    storage: "{{ vm_storage }}"
+    state: present
+  loop: "{{ hardware_profile.lxc_containers.docker_enabled }}"
+  when: "'proxmox_servers' in group_names"
+
+- name: Setze LXC Features für Docker-Kompatibilität
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/lxc/{{ item }}.conf"
+    line: "lxc.apparmor.profile: unconfined"
+    state: present
+  loop: "{{ hardware_profile.lxc_containers.docker_enabled }}"
+  when: allow_docker_in_lxc | default(false)

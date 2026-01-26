@@ -1,0 +1,4 @@
+---
+- name: Starte App-spezifische Tests
+  include_role:
+    name: apps/app_tests

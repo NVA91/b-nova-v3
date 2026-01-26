@@ -1,0 +1,4 @@
+---
+- name: Führe QA Smoke Tests aus
+  include_role:
+    name: qa_smoke

@@ -1,0 +1,32 @@
+---
+- name: Zeige aktive Netzwerk-Interfaces
+  ansible.builtin.command: ip -brief address
+  register: network_ifaces
+
+- name: Liste Interfaces
+  debug:
+    var: network_ifaces.stdout_lines
+
+- name: Zeige Routing-Tabelle
+  ansible.builtin.command: ip route
+  register: route_table
+
+- name: Liste Routing-Informationen
+  debug:
+    var: route_table.stdout_lines
+
+- name: Liste geöffnete Ports (TCP/UDP)
+  ansible.builtin.command: ss -tuln
+  register: open_ports
+
+- name: Liste offene Ports
+  debug:
+    var: open_ports.stdout_lines
+
+- name: Zeige aktive Verbindungen
+  ansible.builtin.command: ss -s
+  register: connections
+
+- name: Übersicht Verbindungsstatus
+  debug:
+    var: connections.stdout_lines

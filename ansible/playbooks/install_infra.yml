@@ -1,0 +1,10 @@
+- name: Core Infrastruktur Deployment
+  hosts: proxmox_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - import_tasks: ../tasks/preflight_checks.yml
+
+  tasks:
+    - import_tasks: ../tasks/infra_tasks.yml

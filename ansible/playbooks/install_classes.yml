@@ -1,0 +1,22 @@
+- name: NOVA v3 - Installationssteuerung
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    do_infra: true
+    do_apps: true
+    do_test: false
+
+  tasks:
+    - name: "Installation: Core-Infrastruktur"
+      import_playbook: install_infra.yml
+      when: do_infra
+
+    - name: "Installation: Applikationen"
+      import_playbook: install_apps.yml
+      when: do_apps
+
+    - name: "Installation: Tests & Wartung"
+      import_playbook: install_tests.yml
+      when: do_test

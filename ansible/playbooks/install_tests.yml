@@ -1,0 +1,7 @@
+- name: Tests und Wartung
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - import_tasks: ../tasks/test_tasks.yml

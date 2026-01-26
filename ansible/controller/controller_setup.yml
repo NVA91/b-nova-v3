@@ -1,0 +1,7 @@
+- name: AWX / Ansible Tower Setup
+  hosts: awx_servers
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - role: controller/awx_setup

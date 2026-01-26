@@ -1,0 +1,40 @@
+---
+- name: Run hardware_validation tasks
+  import_tasks: hardware_validation.yml
+  tags:
+    - hardware_validation
+    - preflight
+
+- name: Run preflight_checks tasks
+  import_tasks: preflight_checks.yml
+  tags:
+    - preflight
+
+- name: Run provision_guests tasks
+  import_tasks: provision_guests.yml
+  tags:
+    - provision_guests
+    - provision
+
+- name: Run docker_setup tasks
+  import_tasks: docker_setup.yml
+  tags:
+    - docker_setup
+
+- name: Run lxc_setup tasks
+  import_tasks: lxc_setup.yml
+  tags:
+    - lxc_setup
+    - provision
+
+- name: Run qa_smoke tasks
+  import_tasks: qa_smoke.yml
+  tags:
+    - qa_smoke
+    - tests
+
+- name: Run app_tests tasks
+  import_tasks: app_tests.yml
+  tags:
+    - app_tests
+    - tests

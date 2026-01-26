@@ -1,0 +1,7 @@
+- name: Führe App-Tests aus
+  include_role:
+    name: apps/app_tests
+
+- name: Führe QA Smoke Tests aus
+  include_role:
+    name: qa_smoke

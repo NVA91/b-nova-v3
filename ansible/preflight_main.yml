@@ -1,0 +1,9 @@
+- name: SSH-Key Setup durchführen
+  import_tasks: tasks/ssh_key_setup.yml
+  tags:
+    - ssh_setup
+
+- name: Netzwerkstatus scannen
+  import_tasks: tasks/network_security_check.yml
+  tags:
+    - net_scan

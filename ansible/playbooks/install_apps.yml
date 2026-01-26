@@ -1,0 +1,7 @@
+- name: Applikationen Deployment
+  hosts: guest_vms
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - import_tasks: ../tasks/app_tasks.yml

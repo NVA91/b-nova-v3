@@ -29,9 +29,13 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, tags=["Health"])
+# Mount both v1 and legacy /api prefixes for backward compatibility
 app.include_router(agents.router, prefix=settings.API_V1_PREFIX, tags=["Agents"])
+app.include_router(agents.router, prefix="/api", tags=["Agents (legacy)"])
 app.include_router(tasks.router, prefix=settings.API_V1_PREFIX, tags=["Tasks"])
+app.include_router(tasks.router, prefix="/api", tags=["Tasks (legacy)"])
 app.include_router(guardian.router, prefix=settings.API_V1_PREFIX, tags=["Guardian"])
+app.include_router(guardian.router, prefix="/api", tags=["Guardian (legacy)"])
 app.include_router(wizard.router, tags=["Wizard"])
 
 

@@ -40,6 +40,10 @@ async def health_check(db: Session = Depends(get_db)):
             "cpu_percent": cpu_percent,
             "memory_percent": memory.percent,
             "disk_percent": disk.percent,
+        },
+        # Backwards-compatible services block expected by tests
+        "services": {
+            "database": "healthy" if db_status == "healthy" else "unhealthy",
         }
     }
 

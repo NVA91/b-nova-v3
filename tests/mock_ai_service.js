@@ -34,15 +34,15 @@ const server = http.createServer((req, res) => {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const body = Buffer.concat(chunks).toString();
+      const contentType = (req.headers['content-type'] || '').toLowerCase();
 
-      // If this looks like an invalid file upload (test uses 'not an image'), return 500
-      if (body.includes('not an image')) {
+      // If the multipart body indicates a text/plain upload or filename ending in .txt, reject as invalid
+      if (body.includes('Content-Type: text/plain') || /filename=".*\.txt"/i.test(body) || body.includes('not an image')) {
         return res.writeHead(500, { 'Content-Type': 'application/json' }) || res.end(JSON.stringify({ error: 'invalid file' }));
       }
 
-      // If content-type is JSON or no file content present, return 400
-      const contentType = req.headers['content-type'] || '';
-      if (!contentType.includes('multipart/form-data') && body.trim().length === 0) {
+      // If request is JSON or content-type indicates no multipart file upload, treat as bad request
+      if (contentType.includes('application/json') || !contentType.includes('multipart/form-data')) {
         return res.writeHead(400, { 'Content-Type': 'application/json' }) || res.end(JSON.stringify({ error: 'no file provided' }));
       }
 

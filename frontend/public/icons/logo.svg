@@ -1,0 +1,93 @@
+<svg width="256" height="256" viewBox="0 0 256 256"
+     xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Hintergrund transparent (kein <rect>) -->
+
+  <!-- Äußerer Kreis -->
+  <circle cx="128" cy="128" r="110"
+          fill="none"
+          stroke="#39FF14"
+          stroke-width="4" />
+
+  <!-- Dekorative Circuit-Linien -->
+  <path d="M40 120 H90 L110 90"
+        fill="none"
+        stroke="#39FF14"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round" />
+  <circle cx="40" cy="120" r="4" fill="#39FF14" />
+  <circle cx="90" cy="120" r="3" fill="#39FF14" />
+  <circle cx="110" cy="90" r="3" fill="#39FF14" />
+
+  <path d="M166 90 L186 120 H216"
+        fill="none"
+        stroke="#39FF14"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round" />
+  <circle cx="166" cy="90" r="3" fill="#39FF14" />
+  <circle cx="186" cy="120" r="3" fill="#39FF14" />
+  <circle cx="216" cy="120" r="4" fill="#39FF14" />
+
+  <!-- Stilisiertes Raketen-Icon links -->
+  <g transform="translate(70,140) scale(0.8)">
+    <path d="M0 20 L10 0 L20 20 Z"
+          fill="none"
+          stroke="#39FF14"
+          stroke-width="2" />
+    <path d="M10 20 V32"
+          stroke="#39FF14"
+          stroke-width="2"
+          stroke-linecap="round" />
+    <path d="M6 32 L10 40 L14 32"
+          fill="none"
+          stroke="#39FF14"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round" />
+  </g>
+
+  <!-- Stilisiertes Phoenix-/Flügel-Icon rechts -->
+  <g transform="translate(166,140) scale(0.8)">
+    <path d="M0 30
+             C 8 10, 18 10, 26 30
+             C 20 24, 14 24, 8 30
+             Z"
+          fill="none"
+          stroke="#39FF14"
+          stroke-width="2"
+          stroke-linejoin="round" />
+    <path d="M13 18 L16 8"
+          stroke="#39FF14"
+          stroke-width="2"
+          stroke-linecap="round" />
+  </g>
+
+  <!-- Sterne / Punkte -->
+  <circle cx="60" cy="60" r="2" fill="#39FF14" />
+  <circle cx="200" cy="70" r="2" fill="#39FF14" />
+  <circle cx="180" cy="190" r="2" fill="#39FF14" />
+  <circle cx="70" cy="190" r="2" fill="#39FF14" />
+
+  <!-- Text NOVA -->
+  <text x="128" y="120"
+        text-anchor="middle"
+        fill="#39FF14"
+        font-family="Segoe UI, Arial, sans-serif"
+        font-size="34"
+        font-weight="700"
+        letter-spacing="4">
+    NOVA
+  </text>
+
+  <!-- Text v3 -->
+  <text x="128" y="148"
+        text-anchor="middle"
+        fill="#39FF14"
+        font-family="Segoe UI, Arial, sans-serif"
+        font-size="20"
+        font-weight="600">
+    v3
+  </text>
+</svg>

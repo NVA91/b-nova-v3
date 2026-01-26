@@ -71,10 +71,10 @@ async def run_security_scan() -> Dict:
 
 
 @router.get("/alerts")
-async def get_alerts() -> Dict:
+async def get_alerts() -> list:
     """Return current alerts (legacy endpoint)"""
     try:
-        # For now return empty list
+        # For now return empty list of alerts
         return []
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

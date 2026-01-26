@@ -32,7 +32,7 @@ class TaskResponse(BaseModel):
     result: Optional[Dict] = None
 
 
-@router.post("/tasks", response_model=TaskResponse)
+@router.post("/tasks")
 async def create_task(task: dict):
     """
     Create a new task for an agent
@@ -69,7 +69,17 @@ async def create_task(task: dict):
     }
     
     TASKS[task_id] = task_data
-    return TaskResponse(**task_data)
+    # Return legacy response shape expected by tests
+    return {
+        "id": task_id,
+        "title": action,
+        "agent": agent_id,
+        "parameters": parameters,
+        "status": "pending",
+        "created_at": now,
+        "updated_at": now,
+        "result": None,
+    }
 
 
 @router.get("/tasks", response_model=List[TaskResponse])
@@ -88,15 +98,24 @@ async def list_tasks(agent_id: Optional[str] = None, status: Optional[str] = Non
     return [TaskResponse(**t) for t in tasks]
 
 
-@router.get("/tasks/{task_id}", response_model=TaskResponse)
+@router.get("/tasks/{task_id}")
 async def get_task(task_id: str):
     """
-    Get specific task details
+    Get specific task details (legacy response shape)
     """
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-    
-    return TaskResponse(**TASKS[task_id])
+    t = TASKS[task_id]
+    return {
+        "id": task_id,
+        "title": t["action"],
+        "agent": t["agent_id"],
+        "parameters": t["parameters"],
+        "status": t["status"],
+        "created_at": t["created_at"],
+        "updated_at": t["updated_at"],
+        "result": t.get("result"),
+    }
 
 
 @router.delete("/tasks/{task_id}")
@@ -109,6 +128,27 @@ async def delete_task(task_id: str):
     
     del TASKS[task_id]
     return {"message": f"Task '{task_id}' deleted"}
+
+
+@router.patch("/tasks/{task_id}")
+async def update_task(task_id: str, payload: dict):
+    """Update a task (e.g., status) - legacy support"""
+    if task_id not in TASKS:
+        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
+    task = TASKS[task_id]
+    if "status" in payload:
+        task["status"] = payload["status"]
+        task["updated_at"] = datetime.utcnow().isoformat()
+    return {
+        "id": task_id,
+        "title": task["action"],
+        "agent": task["agent_id"],
+        "parameters": task["parameters"],
+        "status": task["status"],
+        "created_at": task["created_at"],
+        "updated_at": task["updated_at"],
+        "result": task.get("result"),
+    }
 
 
 @router.post("/tasks/{task_id}/cancel")

@@ -1,0 +1,78 @@
+name: Run Test Runner (dispatch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to start (space-separated)'
+        required: false
+        default: 'db backend ai-service frontend'
+      test_image:
+        description: 'Path to test image inside repo'
+        required: false
+        default: './tests/test-image.jpg'
+      ai_service_url:
+        description: 'Service URL used by tests (use backend host in compose network, e.g. http://backend:8000)'
+        required: false
+        default: 'http://backend:8000'
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start minimal Compose services
+        env:
+          SERVICES: ${{ github.event.inputs.services }}
+        run: |
+          echo "Starting services: ${SERVICES}"
+          docker compose up -d ${SERVICES}
+
+      - name: Wait for backend healthy
+        run: |
+          set -euo pipefail
+          CID=$(docker compose ps -q backend)
+          if [ -z "${CID}" ]; then
+            echo "Backend container not found, failing"
+            exit 1
+          fi
+          echo "Waiting for backend (container ${CID}) to become healthy..."
+          for i in {1..60}; do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' ${CID} || true)
+            echo "Health: ${STATUS}"
+            if [ "${STATUS}" = "healthy" ]; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Backend did not become healthy in time"
+          docker compose logs backend --tail 200
+          exit 1
+
+      - name: Run test runner inside Node container on compose network
+        env:
+          TEST_IMAGE: ${{ github.event.inputs.test_image }}
+          AI_SERVICE_URL: ${{ github.event.inputs.ai_service_url }}
+        run: |
+          set -euo pipefail
+          # find compose network for this project
+          PROJECT_LABEL=${{ github.repository }}
+          # label format: com.docker.compose.project=<project>
+          NETWORK=$(docker network ls --filter label=com.docker.compose.project=${{ github.repository }} -q | head -n1)
+          if [ -z "${NETWORK}" ]; then
+            # fallback: use first network with project label equal to repo name only
+            NETWORK=$(docker network ls --filter label=com.docker.compose.project=$(basename "${PWD}") -q | head -n1)
+          fi
+          echo "Using network: ${NETWORK}"
+          docker run --rm --network ${NETWORK} -v ${GITHUB_WORKSPACE}:/repo -w /repo node:18-bullseye bash -lc "chmod +x tests/run-all-tests.sh && AI_SERVICE_URL='${AI_SERVICE_URL}' TEST_IMAGE='${TEST_IMAGE}' bash tests/run-all-tests.sh"
+
+      - name: Upload logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

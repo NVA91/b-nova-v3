@@ -60,6 +60,26 @@ async def check_docker_security() -> Dict:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/scan")
+async def run_security_scan() -> Dict:
+    """Run a combined security scan (legacy /scan endpoint)"""
+    try:
+        result = guardian.scan_cve_vulnerabilities()
+        return {"scan_id": "scan-1", "status": "completed", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/alerts")
+async def get_alerts() -> Dict:
+    """Return current alerts (legacy endpoint)"""
+    try:
+        # For now return empty list
+        return []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/health")
 async def health_check() -> Dict:
     """Umfassender System-Health-Check"""

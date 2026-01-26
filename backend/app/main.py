@@ -7,6 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .api.routes import agents, health, tasks, guardian, wizard
 
+# Ensure models are imported so their tables exist during tests
+import app.models
+
 settings = get_settings()
 
 # Create FastAPI app

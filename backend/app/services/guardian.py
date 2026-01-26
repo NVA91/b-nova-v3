@@ -85,8 +85,32 @@ class GuardianService:
     
     def predict_resource_usage(self, minutes_ahead: int = 5) -> Dict:
         """Vorhersage der Ressourcen-Nutzung basierend auf historischen Daten"""
+        # If not enough historical data, return a best-effort prediction with low confidence
         if len(self.metrics_history) < 10:
-            return {"status": "insufficient_data", "message": "Need more historical data"}
+            current = self.get_system_metrics()
+            return {
+                "timestamp": datetime.utcnow().isoformat(),
+                "prediction_time": minutes_ahead,
+                "current": {
+                    "cpu": current["cpu"]["percent"],
+                    "memory": current["memory"]["percent"],
+                    "disk": current["disk"]["percent"],
+                },
+                "predicted": {
+                    "cpu": current["cpu"]["percent"],
+                    "memory": current["memory"]["percent"],
+                    "disk": current["disk"]["percent"],
+                },
+                "prediction": {
+                    "cpu": current["cpu"]["percent"],
+                    "memory": current["memory"]["percent"],
+                    "disk": current["disk"]["percent"],
+                },
+                "confidence": 0.0,
+                "status": "insufficient_data",
+                "message": "Need more historical data",
+                "alerts": []
+            }
         
         # Simple linear prediction based on recent trend
         recent_metrics = self.metrics_history[-10:]

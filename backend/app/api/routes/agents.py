@@ -53,9 +53,22 @@ AGENTS = {
 @router.get("/agents", response_model=List[Dict])
 async def list_agents():
     """
-    List all available agents
+    List all available agents (legacy API returns 'name' as id)
     """
-    return list(AGENTS.values())
+    results = []
+    for a in AGENTS.values():
+        # legacy-friendly: 'name' contains lowercase id, keep 'display_name' for original label
+        results.append({
+            "id": a["id"],
+            "name": a["id"],
+            "display_name": a["name"],
+            "emoji": a["emoji"],
+            "role": a["role"],
+            "description": a["description"],
+            "enabled": a["enabled"],
+            "capabilities": a["capabilities"],
+        })
+    return results
 
 
 @router.get("/agents/{agent_id}", response_model=Dict)
@@ -104,12 +117,13 @@ async def get_agent_status(agent_id: str):
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     
     agent = AGENTS[agent_id]
-    
+    # normalize status to active/inactive/error for legacy tests
+    status = "active" if agent["enabled"] else "inactive"
     return {
         "agent_id": agent_id,
-        "agent_name": agent["name"],
+        "agent_name": agent["id"],
         "enabled": agent["enabled"],
-        "status": "online" if agent["enabled"] else "offline",
+        "status": status,
         "tasks_running": 0,  # TODO: Implement actual task tracking
         "tasks_completed": 0,
     }

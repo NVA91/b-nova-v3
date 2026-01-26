@@ -33,18 +33,35 @@ class TaskResponse(BaseModel):
 
 
 @router.post("/tasks", response_model=TaskResponse)
-async def create_task(task: TaskCreate):
+async def create_task(task: dict):
     """
     Create a new task for an agent
+    Supports legacy payloads (title/agent/description) and new schema (agent_id/action/parameters)
     """
+    # Normalize payload
+    if "agent_id" not in task and "agent" in task:
+        agent_id = task.get("agent")
+    else:
+        agent_id = task.get("agent_id")
+
+    if "action" not in task and "title" in task:
+        action = task.get("title")
+    else:
+        action = task.get("action")
+
+    parameters = task.get("parameters", {})
+    # Include legacy fields for traceability
+    if "description" in task:
+        parameters["description"] = task.get("description")
+
     task_id = str(uuid4())
     now = datetime.utcnow().isoformat()
     
     task_data = {
         "task_id": task_id,
-        "agent_id": task.agent_id,
-        "action": task.action,
-        "parameters": task.parameters,
+        "agent_id": agent_id,
+        "action": action,
+        "parameters": parameters,
         "status": "pending",
         "created_at": now,
         "updated_at": now,

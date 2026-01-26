@@ -15,8 +15,17 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 # Configuration
-SERVICE_URL="${AI_SERVICE_URL:-http://localhost:8000}"
-TEST_IMAGE="${TEST_IMAGE:-./test-image.jpg}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Backwards compatibility: allow SERVICE_URL, prefer AI_SERVICE_URL
+export AI_SERVICE_URL="${AI_SERVICE_URL:-${SERVICE_URL:-http://localhost:8000}}"
+
+# Default test image location (can be overridden)
+TEST_IMAGE="${TEST_IMAGE:-${REPO_ROOT}/tests/test-image.jpg}"
+export TEST_IMAGE
+
+FRONTEND_TEST_DIR="${REPO_ROOT}/frontend/tests"
 
 ################################################################################
 # FUNCTIONS
@@ -33,7 +42,9 @@ print_header() {
 print_section() {
     echo ""
     echo -e "${BOLD}${BLUE}▶ $1${RESET}"
-    echo -e "${CYAN}${'═'%.s{1..60}}${RESET}"
+    printf '%b' "${CYAN}"
+    printf '═%.0s' {1..60}
+    printf '%b\n\n' "${RESET}"
     echo ""
 }
 
@@ -71,7 +82,7 @@ run_test_with_timeout() {
 print_header
 
 echo -e "${BOLD}Configuration:${RESET}"
-echo "  Service URL: ${SERVICE_URL}"
+echo "  Service URL: ${AI_SERVICE_URL}"
 echo "  Test Image:  ${TEST_IMAGE}"
 echo ""
 
@@ -94,7 +105,7 @@ FAILED_TESTS=0
 
 print_section "1. Startup Simulation & Health Check"
 
-run_test_with_timeout "Startup Simulation" "node test-startup-simulation.js startup" 60
+run_test_with_timeout "Startup Simulation" "node ${FRONTEND_TEST_DIR}/test-startup-simulation.js startup" 60
 
 ################################################################################
 # 2. INTEGRATION TESTS
@@ -102,7 +113,7 @@ run_test_with_timeout "Startup Simulation" "node test-startup-simulation.js star
 
 print_section "2. Integration Tests"
 
-run_test_with_timeout "Integration Tests" "node test-integration.js" 120
+run_test_with_timeout "Integration Tests" "node ${FRONTEND_TEST_DIR}/test-integration.js" 120
 
 ################################################################################
 # 3. PERFORMANCE TESTS
@@ -110,9 +121,9 @@ run_test_with_timeout "Integration Tests" "node test-integration.js" 120
 
 print_section "3. Performance Tests"
 
-run_test_with_timeout "Single Prediction Benchmark" "node test-load-performance.js single" 60
+run_test_with_timeout "Single Prediction Benchmark" "node ${FRONTEND_TEST_DIR}/test-load-performance.js single" 60
 
-run_test_with_timeout "Load Test (10 concurrent, 50 total)" "node test-load-performance.js load 10 50" 300
+run_test_with_timeout "Load Test (10 concurrent, 50 total)" "node ${FRONTEND_TEST_DIR}/test-load-performance.js load 10 50" 300
 
 ################################################################################
 # 4. MONITORING TEST
@@ -120,7 +131,7 @@ run_test_with_timeout "Load Test (10 concurrent, 50 total)" "node test-load-perf
 
 print_section "4. Health Monitoring"
 
-run_test_with_timeout "Health Monitoring (30s)" "node test-startup-simulation.js monitor 30000 5000" 90
+run_test_with_timeout "Health Monitoring (30s)" "node ${FRONTEND_TEST_DIR}/test-startup-simulation.js monitor 30000 5000" 90
 
 ################################################################################
 # SUMMARY

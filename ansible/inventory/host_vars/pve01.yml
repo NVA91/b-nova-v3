@@ -2,25 +2,6 @@
 # Host-spezifische Variablen für pve01
 ssh_key_path: /home/one-nova/.ssh/id_ansible_service.pub
 
-# GPU Hookscript Steuerung
+# GPU Hookscript Steuerung (Deployment-Parameter, keine Hardware-Definition)
 gpu_vm_id: 101
-gpu_pci_ids:
-  - "0000:01:00.0"  # NVIDIA RTX 5060 Ti
-  - "0000:01:00.1"  # NVIDIA Audio-Device
-
-# GPU Passthrough Konfiguration für Proxmox Host
-proxmox_gpu_passthrough:
-  kernel_cmdline: "quiet amd_iommu=on iommu=pt vfio-pci.ids=10de:2d04,10de:22eb video=efifb:off"
-  
-  vfio_modules:
-    - vfio
-    - vfio_iommu_type1
-    - vfio_pci
-    - vfio_virqfd
-  
-  blacklist_modules:
-    - nouveau
-    - nvidia
-    - nvidia_drm
-    - nvidia_modeset
 

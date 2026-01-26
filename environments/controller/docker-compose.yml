@@ -10,12 +10,14 @@ services:
     image: postgres:15-alpine
     container_name: awx-postgres
     environment:
-      POSTGRES_DB: awx
-      POSTGRES_USER: awx
-      POSTGRES_PASSWORD: ${AWX_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-awx}
+      POSTGRES_USER: ${POSTGRES_USER:-awx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - awx-db:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - awx-network
 
   # ============================================================================
   # Redis Cache (simplified)
@@ -24,30 +26,64 @@ services:
     image: redis:7-alpine
     container_name: awx-redis
     restart: unless-stopped
+    networks:
+      - awx-network
 
   # ============================================================================
   # AWX Web Interface & API (simplified)
   # ============================================================================
   awx-web:
-    image: ansible/awx:latest
+    image: ansible/awx:${AWX_VERSION:-latest}
     container_name: awx-web
     depends_on:
       - awx-postgres
       - awx-redis
     environment:
       SECRET_KEY: ${AWX_SECRET_KEY}
-      DATABASE_HOST: awx-postgres
-      REDIS_HOST: awx-redis
+      DATABASE_HOST: ${POSTGRES_HOST:-awx-postgres}
+      DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      DATABASE_NAME: ${POSTGRES_DB:-awx}
+      DATABASE_USER: ${POSTGRES_USER:-awx}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST:-awx-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
     ports:
-      - "8080:8052"
+      - "${AWX_WEB_PORT:-8080}:8052"
     volumes:
       - awx-projects:/var/lib/awx/projects
-      - ../../ansible:/ansible:ro  # Read-only mount
+      - ${ANSIBLE_PROJECT_PATH:-../../ansible}:/ansible:ro  # Read-only mount
     restart: unless-stopped
+    networks:
+      - awx-network
 
   # ============================================================================
   # AWX Task Manager (Ansible Job Executor)
   # ============================================================================
+  awx-task:
+    image: ansible/awx:${AWX_VERSION:-latest}
+    container_name: awx-task
+    depends_on:
+      - awx-postgres
+      - awx-redis
+    environment:
+      SECRET_KEY: ${AWX_SECRET_KEY}
+      DATABASE_HOST: ${POSTGRES_HOST:-awx-postgres}
+      DATABASE_PORT: ${POSTGRES_PORT:-5432}
+      DATABASE_NAME: ${POSTGRES_DB:-awx}
+      DATABASE_USER: ${POSTGRES_USER:-awx}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST:-awx-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      AWX_LOG_LEVEL: ${AWX_LOG_LEVEL:-INFO}
+    volumes:
+      - awx-projects:/var/lib/awx/projects
+      - ${ANSIBLE_PROJECT_PATH:-../../ansible}:/ansible:ro
+
+      # SSH key passthrough (read-only) for accessing test/prod hosts
+      - ${SSH_KEY_PATH:-${HOME}/.ssh}:/root/.ssh:ro
+    restart: unless-stopped
+    networks:
+      - awx-network
 
 
 # ============================================================================

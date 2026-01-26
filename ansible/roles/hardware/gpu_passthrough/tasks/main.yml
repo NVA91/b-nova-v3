@@ -1,12 +1,22 @@
----
 # gpu_hookscript Role - Dynamisches GPU-Passthrough
 
-- name: "Hookscript: PCI-IDs normalisieren (gpu_pci_ids oder nova_hardware)"
+- name: "Hookscript: PCI-IDs normalisieren (gpu_pci_ids oder hardware_profile)"
   ansible.builtin.set_fact:
     gpu_hookscript_pci_ids: >-
       {{
         (gpu_pci_ids | default([]))
         if (gpu_pci_ids | default([]) | length) > 0
+        else (
+          [hardware_profile.gpu.egpu.passthrough.pci_id]
+          + ([hardware_profile.gpu.egpu.passthrough.audio_pci_id] if (hardware_profile.gpu.egpu.passthrough.audio_pci_id is defined and hardware_profile.gpu.egpu.passthrough.audio_pci_id | length > 0) else [])
+        )
+        if (
+          hardware_profile is defined
+          and hardware_profile.gpu is defined
+          and hardware_profile.gpu.egpu is defined
+          and hardware_profile.gpu.egpu.passthrough is defined
+          and hardware_profile.gpu.egpu.passthrough.pci_id is defined
+        )
         else (
           [nova_hardware.spec.gpu.egpu.pci_id]
           + ([nova_hardware.spec.gpu.egpu.audio_pci_id] if (nova_hardware.spec.gpu.egpu.audio_pci_id is defined and nova_hardware.spec.gpu.egpu.audio_pci_id | length > 0) else [])
@@ -19,7 +29,7 @@
 
 - name: "Fail if GPU PCI ID is not defined"
   ansible.builtin.fail:
-    msg: "GPU PCI ID ist nicht gesetzt – kann GPU Passthrough nicht konfigurieren. Setze gpu_pci_ids oder nova_hardware.spec.gpu.egpu.pci_id."
+    msg: "GPU PCI ID ist nicht gesetzt – kann GPU Passthrough nicht konfigurieren. Setze gpu_pci_ids oder hardware_profile.gpu.egpu.passthrough.pci_id."
   when: gpu_vm_id is defined and (gpu_hookscript_pci_ids | length) == 0
   tags:
     - gpu_hookscript

@@ -1,7 +1,6 @@
----
 # hardware_security Role - Validierung (keine Änderungen am System)
 
-- name: "Hardware Security: PCI-IDs normalisieren (explizit oder aus nova_hardware/gpu_pci_ids)"
+- name: "Hardware Security: PCI-IDs normalisieren (explizit oder aus hardware_profile/gpu_pci_ids)"
   ansible.builtin.set_fact:
     hardware_security_effective_pci_ids: >-
       {{
@@ -10,6 +9,17 @@
         else (
           (gpu_pci_ids | default([]))
           if (gpu_pci_ids | default([]) | length) > 0
+          else (
+            [hardware_profile.gpu.egpu.passthrough.pci_id]
+            + ([hardware_profile.gpu.egpu.passthrough.audio_pci_id] if (hardware_profile.gpu.egpu.passthrough.audio_pci_id is defined and hardware_profile.gpu.egpu.passthrough.audio_pci_id | length > 0) else [])
+          )
+          if (
+            hardware_profile is defined
+            and hardware_profile.gpu is defined
+            and hardware_profile.gpu.egpu is defined
+            and hardware_profile.gpu.egpu.passthrough is defined
+            and hardware_profile.gpu.egpu.passthrough.pci_id is defined
+          )
           else (
             [nova_hardware.spec.gpu.egpu.pci_id]
             + ([nova_hardware.spec.gpu.egpu.audio_pci_id] if (nova_hardware.spec.gpu.egpu.audio_pci_id is defined and nova_hardware.spec.gpu.egpu.audio_pci_id | length > 0) else [])

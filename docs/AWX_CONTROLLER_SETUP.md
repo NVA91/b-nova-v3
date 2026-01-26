@@ -17,7 +17,7 @@ Vollständig getrennt von production mit eigenem Inventory, Variablen und Docker
 
 Definiert Test- und Management-Hosts:
 
-- **`hosts.yml`**: 
+- **`hosts.yml`**:
   - `awx_servers`: AWX-Controller selbst
   - `test_hosts`: Test-Maschinen für sichere Playbook-Ausführung
 
@@ -41,6 +41,7 @@ Kompletter AWX-Stack:
 - **awx-redis**: Redis Cache
 
 **Besonderheiten**:
+
 - Read-only Mount des Ansible-Projekts (`:ro`)
 - SSH-Key-Durchreichung für Host-Zugriff
 - Security hardening (no-new-privileges, cap_drop)
@@ -57,6 +58,7 @@ cp .env.example .env
 ```
 
 **WICHTIG**: Editiere `.env` und setze:
+
 - `AWX_SECRET_KEY` (generiere mit: `openssl rand -hex 32`)
 - `AWX_ADMIN_PASSWORD` (sicheres Passwort)
 - `POSTGRES_PASSWORD` (sicheres Passwort)
@@ -68,12 +70,27 @@ cp .env.example .env
 docker-compose -f environments/controller/docker-compose.yml up -d
 ```
 
+Alternativ ("Knopfdruck" via Makefile):
+
+```bash
+make controller-up
+make controller-ps
+```
+
 **Erste Startzeit**: ~5 Minuten (Datenbank-Initialisierung)
 
 Prüfe Status:
+
 ```bash
 docker-compose -f environments/controller/docker-compose.yml ps
 docker logs awx-web
+```
+
+Oder:
+
+```bash
+make controller-ps
+make controller-logs
 ```
 
 ### Schritt 3: AWX-Konfiguration anwenden
@@ -81,6 +98,7 @@ docker logs awx-web
 Nach erfolgreichem AWX-Start:
 
 1. **Installiere AWX-Collection**:
+
    ```bash
    ansible-galaxy collection install -r ansible/requirements.yml
    ```
@@ -88,6 +106,7 @@ Nach erfolgreichem AWX-Start:
    **Hinweis**: Die Collection wird von GitHub installiert (awx.awx namespace) aufgrund von Versionskonflikten in Galaxy.
 
 2. **Exportiere Credentials** (oder setze in `.env`):
+
    ```bash
    export AWX_ADMIN_USER=admin
    export AWX_ADMIN_PASSWORD=your_secure_password
@@ -96,18 +115,21 @@ Nach erfolgreichem AWX-Start:
    ```
 
 3. **Führe Controller-Playbook aus**:
+
    ```bash
    cd ansible/playbooks
    ansible-playbook controller.yml
    ```
    
    **Hinweis**: Das playbooks/-Verzeichnis hat eine eigene ansible.cfg, die automatisch das richtige Inventory lädt. Alternativ können Sie von überall aus mit explizitem Inventory-Pfad laufen lassen:
+
    ```bash
    ansible-playbook ansible/playbooks/controller.yml \
      -i ansible/inventory/controller/hosts.yml
    ```
 
 Das Playbook konfiguriert automatisch:
+
 - ✅ Organizations
 - ✅ Projekte (production/testing branches)
 - ✅ Inventories mit Git-Sync
@@ -122,16 +144,17 @@ Das Playbook konfiguriert automatisch:
 
 ### AWX Web-Interface
 
-Öffne: **http://localhost:8080**
+Öffne: <http://localhost:8080>
 
 Login:
+
 - Username: `admin`
 - Password: (aus `.env` > `AWX_ADMIN_PASSWORD`)
 
 ### Vordefinierte Job-Templates
 
 | Template | Beschreibung | Tags |
-|----------|-------------|------|
+| -------- | ------------ | ---- |
 | **Hardware Validation** | Pre-Flight Checks (CPU/RAM/Storage/GPU) | `hardware_validation,preflight` |
 | **System Setup** | Proxmox Host-Konfiguration | `system_setup` |
 | **Provision VMs** | Guest-VMs erstellen | `provision` |
@@ -144,6 +167,7 @@ Login:
 ### Workflow-Templates
 
 #### 1. **Full Stack Deployment**
+
 Komplette Deployment-Pipeline mit Approval-Gates:
 
 1. Hardware Validation
@@ -156,6 +180,7 @@ Komplette Deployment-Pipeline mit Approval-Gates:
 8. QA Smoke Tests
 
 #### 2. **GPU Passthrough Setup**
+
 GPU-Konfiguration mit Validierung:
 
 1. Hardware Security Check
@@ -172,18 +197,21 @@ GPU-Konfiguration mit Validierung:
 ## 🔒 Sicherheitsfeatures
 
 ### Container-Härtung
+
 - ✅ `no-new-privileges: true`
 - ✅ `cap_drop: ALL` + minimale Capabilities
 - ✅ Read-only Ansible-Projekt-Mount
 - ✅ Resource-Limits (CPU/Memory)
 
 ### Credential-Management
+
 - ✅ Keine Plaintext-Passwörter in Git
 - ✅ Ansible Vault für sensible Daten
 - ✅ SSH-Keys read-only gemountet
 - ✅ Credentials verschlüsselt in AWX-DB
 
 ### Netzwerk-Isolation
+
 - ✅ Eigenes Bridge-Network (`172.25.0.0/16`)
 - ✅ Keine Host-Network-Exposition
 - ✅ API nur auf localhost
@@ -245,6 +273,12 @@ docker-compose -f environments/controller/docker-compose.yml pull
 docker-compose -f environments/controller/docker-compose.yml up -d
 ```
 
+Oder:
+
+```bash
+make controller-up
+```
+
 ### AWX-Konfiguration neu anwenden
 
 ```bash
@@ -278,6 +312,7 @@ docker run --rm -v awx-postgres-data:/data -v $(pwd):/backup \
 ## 🤝 Best Practices
 
 ### ✅ DO
+
 - Teste Playbooks zuerst in Controller-Umgebung
 - Nutze Approval-Gates für kritische Änderungen
 - Aktiviere Schedules für regelmäßige Validierung
@@ -285,11 +320,16 @@ docker run --rm -v awx-postgres-data:/data -v $(pwd):/backup \
 - Verwende separate Git-Branches für Testing
 
 ### ❌ DON'T
+
 - Keine Production-Credentials in Test-Umgebung
 - Kein direkter Production-Zugriff aus Controller
 - Keine manuellen Änderungen in AWX (nutze `awx.yml`)
 - Keine `.env` ins Git committen
 
+Beispiel-Warnungen (wenn aus dem falschen Verzeichnis/mit falschem Inventory ausgeführt):
+
+```text
 [WARNING]: Unable to parse hosts.ini
 [WARNING]: No inventory was parsed
 [WARNING]: Could not match awx_servers
+```

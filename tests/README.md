@@ -7,8 +7,8 @@ Dieses Verzeichnis enthält den Master Test Runner für den AI-Service.
 Der Runner erwartet ein laufendes Backend und eine Test-Image-Datei.
 
 - Standardwerte:
-  - SERVICE_URL: `http://localhost:8000`
-  - TEST_IMAGE: `./test-image.jpg`
+  - AI_SERVICE_URL: `http://localhost:8000`
+  - TEST_IMAGE: `./tests/test-image.jpg`
 
 Beispiel: (im Projekt-Root)
 
@@ -17,10 +17,10 @@ Beispiel: (im Projekt-Root)
 #    docker compose up -d backend db
 
 # 2) Test image bereitstellen (oder Pfad angeben):
-#    cp /path/to/sample.jpg ./test-image.jpg
+#    cp /path/to/sample.jpg ./tests/test-image.jpg
 
 # 3) Runner starten (Fail-Fast, Timeouts per Test konfiguriert):
-SERVICE_URL="http://localhost:8000" TEST_IMAGE="./test-image.jpg" bash tests/run-all-tests.sh
+AI_SERVICE_URL="http://localhost:8000" TEST_IMAGE="./tests/test-image.jpg" bash tests/run-all-tests.sh
 ```
 
 ## Voraussetzungen

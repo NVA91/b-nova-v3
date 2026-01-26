@@ -1,16 +1,67 @@
 # Template: mini_pc_amd.yml.j2
-nova_hardware:
-  spec:
-    name: "{{ name | default('Mini-PC AMD') }}"
-    type: "mini_pc"
-    cpu:
-      model: "{{ cpu.model | default('AMD Ryzen') }}"
-      cores: {{ cpu.cores | default(8) }}
-      threads: {{ cpu.threads | default(16) }}
-    memory:
-      total_gb: {{ memory.total_gb | default(32) }}
-    storage:
-      vm_disk:
-        device: "{{ storage.vm_disk.device | default('/dev/nvme0n1') }}"
-        size: "{{ storage.vm_disk.size | default('2 TB') }}"
-        zfs_pool: "{{ storage.vm_disk.zfs_pool | default('vmpool') }}"
+# SSoT schema: this template produces a hardware_profile YAML document
+
+spec:
+  name: "{{ name | default('mini-pc-01') }}"
+  description: "{{ description | default('Mini-PC AMD') }}"
+  type: "mini_pc"
+
+  cpu:
+    model: "{{ cpu.model | default('AMD Ryzen') }}"
+    cores: {{ cpu.cores | default(8) }}
+    threads: {{ cpu.threads | default(16) }}
+    features: {{ cpu.features | default([]) }}
+
+  memory:
+    total_gb: {{ memory.total_gb | default(32) }}
+    type: "{{ memory.type | default('DDR5') }}"
+    speed_mt_s: {{ memory.speed_mt_s | default(5600) }}
+
+  storage:
+    vm_disk:
+      device: "{{ storage.vm_disk.device | default('/dev/nvme0n1') }}"
+      size_tb: {{ storage.vm_disk.size_tb | default(2) }}
+      type: "{{ storage.vm_disk.type | default('NVMe SSD') }}"
+      model: "{{ storage.vm_disk.model | default('') }}"
+      interface: "{{ storage.vm_disk.interface | default('PCIe 4.0 x4') }}"
+      purpose: "{{ storage.vm_disk.purpose | default('VM Storage') }}"
+
+    storage_disk:
+      device: "{{ storage.storage_disk.device | default('/dev/nvme1n1') }}"
+      size_tb: {{ storage.storage_disk.size_tb | default(2) }}
+      type: "{{ storage.storage_disk.type | default('NVMe SSD') }}"
+      interface: "{{ storage.storage_disk.interface | default('PCIe 4.0 x4') }}"
+      purpose: "{{ storage.storage_disk.purpose | default('Storage') }}"
+
+    system_disk:
+      device: "{{ storage.system_disk.device | default('/dev/nvme2n1') }}"
+      size_tb: {{ storage.system_disk.size_tb | default(1) }}
+      type: "{{ storage.system_disk.type | default('NVMe SSD') }}"
+      purpose: "{{ storage.system_disk.purpose | default('Proxmox OS') }}"
+
+network:
+  lan:
+    ports: {{ network.lan.ports | default(2) }}
+    speed_gbps: {{ network.lan.speed_gbps | default(2.5) }}
+    controllers: {{ network.lan.controllers | default([]) }}
+
+  wifi:
+    enabled: {{ network.wifi.enabled | default(true) }}
+    standard: "{{ network.wifi.standard | default('Wi-Fi 6E') }}"
+
+  bluetooth:
+    enabled: {{ network.bluetooth.enabled | default(true) }}
+    version: "{{ network.bluetooth.version | default('5.2') }}"
+
+chassis:
+  connectivity:
+    oculink:
+      enabled: {{ chassis.oculink.enabled | default(false) }}
+      note: "{{ chassis.oculink.note | default('') }}"
+
+gpu:
+  egpu:
+    enabled: false
+
+npu:
+  enabled: false

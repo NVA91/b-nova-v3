@@ -1,160 +1,101 @@
 ---
-# novachris_home - Self-Hosted Cloud Deployment
-# Hauptplaybook für VM-Provisioning, Docker-Setup und App-Deployment
+#+#+#+#+############################################
+# SSoT Deployment Playbook
+# - Hardware-Profil wird im Inventory als hardware_profile geladen
+# - hardware_validation fungiert als Gatekeeper
+#+#+#+#+############################################
 
-# ============================================================================
-# PLAY 1: Profil-Setup und Konfiguration
-# ============================================================================
+- name: "PLAY 1: Pre-Flight Checks & Hardware Validation"
+  hosts: proxmox_servers
+  gather_facts: true
+  become: true
+  roles:
+    - role: hardware/hardware_validation
 
-- name: "PLAY 1: Profil-Setup und Konfiguration"
-  hosts: localhost
-  gather_facts: false
-  vars:
-    wiz_profile: "{{ wiz_profile | default('standard') }}"
-
-  tasks:
-    - name: "Setup: Zeige Profil-Auswahl"
-      ansible.builtin.debug:
-        msg:
-          - "Profil: {{ wiz_profile }}"
-          - "Deployment-Profile: {{ deployment_profiles[wiz_profile].description }}"
-
-    - name: "Setup: Interaktive Abfrage bei Custom-Profil"
-      block:
-        - name: "Frage nach VMs"
-          ansible.builtin.pause:
-            prompt: "Welche VMs sollen erstellt werden? (gateway,office,ai-lab) [gateway,office]"
-          register: vm_input
-
-        - name: "Frage nach Apps"
-          ansible.builtin.pause:
-            prompt: "Welche Apps sollen deployed werden? (wireguard,traefik,paperless,n8n,postgresql,whisper,ollama) [paperless,n8n,postgresql]"
-          register: app_input
-
-        - name: "Setze Custom-Profil-Variablen"
-          ansible.builtin.set_fact:
-            custom_vms: "{{ (vm_input.user_input | default('gateway,office') | split(',')) }}"
-            custom_apps: "{{ (app_input.user_input | default('paperless-ngx,n8n,postgresql') | split(',')) }}"
-      when: wiz_profile == 'custom'
-
-    - name: "Setup: Erstelle WIZARD_CONFIG Host"
-      ansible.builtin.add_host:
-        name: WIZARD_CONFIG
-        ansible_connection: local
-        groups:
-          - wizard_config_group
-        wiz_profile: "{{ wiz_profile }}"
-        deployment_vms: "{{ deployment_profiles[wiz_profile].vms_to_create }}"
-        deployment_apps: "{{ deployment_profiles[wiz_profile].apps_to_deploy }}"
-
-# ============================================================================
-# PLAY 2: Proxmox Host Vorbereitung
-# ============================================================================
-
-- name: "PLAY 2: Proxmox Host Vorbereitung und VM-Provisioning"
+- name: "PLAY 2: Proxmox Host Vorbereitung"
   hosts: proxmox_servers
   gather_facts: true
   become: true
 
-  tasks:
-    - name: "Hardware: Pre-Flight Validation"
-      ansible.builtin.include_role:
-        name: hardware/hardware_validation
-      tags:
-        - hardware_validation
-        - preflight
+  pre_tasks:
+    - name: "SSoT: Mappe hardware_profile.* auf Legacy Variablen (Kompatibilität)"
+      ansible.builtin.set_fact:
+        # Proxmox platform settings
+        zfs_enabled: "{{ hardware_profile.proxmox.zfs_enabled | default(false) }}"
+        storage_thin_pool: "{{ hardware_profile.proxmox.storage_thin_pool | default('local-lvm') }}"
+        vm_storage: "{{ hardware_profile.proxmox.vm_storage | default('local-lvm') }}"
+        backup_storage: "{{ hardware_profile.proxmox.backup_storage | default('local') }}"
+        dir_storage: "{{ hardware_profile.proxmox.dir_storage | default('local') }}"
+        allow_docker_in_lxc: "{{ hardware_profile.proxmox.allow_docker_in_lxc | default(false) }}"
+        lxc_container_ids: "{{ hardware_profile.proxmox.lxc_container_ids | default([]) }}"
 
-    - name: "Proxmox: System-Setup"
-      ansible.builtin.include_role:
-        name: core/system_setup
-      tags:
-        - system_setup
+        # GPU passthrough settings
+        proxmox_gpu_passthrough: "{{ hardware_profile.proxmox.gpu_passthrough | default({}) }}"
+        gpu_pci_ids: >-
+          {{
+            (
+              [hardware_profile.gpu.egpu.passthrough.pci_id]
+              + ([hardware_profile.gpu.egpu.passthrough.audio_pci_id] if (hardware_profile.gpu.egpu.passthrough.audio_pci_id is defined and hardware_profile.gpu.egpu.passthrough.audio_pci_id | length > 0) else [])
+            )
+            if (hardware_profile.gpu.egpu.enabled | default(false)) and (hardware_profile.gpu.egpu.passthrough.enabled | default(false))
+            else []
+          }}
 
-    - name: "Proxmox: User-Management"
-      ansible.builtin.include_role:
-        name: core/user_management
-      tags:
-        - user_management
+        # Optional legacy blob for older roles/templates
+        nova_hardware: "{{ {'spec': hardware_profile.spec, 'gpu': {'egpu': hardware_profile.gpu.egpu | default({})}, 'npu': hardware_profile.npu | default({})} } }"
+      when: hardware_profile is defined
+      tags: [preflight]
 
-    - name: "Proxmox: VM-Provisioning"
-      ansible.builtin.include_role:
-        name: core/provision_guests
-      tags:
-        - never
-        - provision
+  roles:
+    - role: core/system_setup
+    - role: core/user_management
+    - role: hardware/gpu_passthrough
+      when: (hardware_profile.gpu.egpu.enabled | default(false)) and (hardware_profile.gpu.egpu.passthrough.enabled | default(false))
 
-# ============================================================================
-# PLAY 3: Docker Setup auf Guest VMs
-# ============================================================================
+- name: "PLAY 3: VM-Provisioning"
+  hosts: proxmox_servers
+  gather_facts: true
+  become: true
+  roles:
+    - role: core/provision_guests
+  tags:
+    - never
+    - provision
 
-- name: "PLAY 3: Docker Setup auf Guest VMs"
+- name: "PLAY 4: Docker Setup auf Guest VMs"
   hosts: guest_vms
   gather_facts: true
   become: true
   serial: 1
+  roles:
+    - role: core/docker_setup
 
-  tasks:
-    - name: "Docker: Installiere Docker Engine"
-      ansible.builtin.include_role:
-        name: core/docker_setup
-      tags:
-        - docker_setup
-
-# ============================================================================
-# PLAY 4: App Deployment
-# ============================================================================
-
-- name: "PLAY 4: App Deployment auf Guest VMs"
+- name: "PLAY 5: App Deployment auf Guest VMs"
   hosts: guest_vms
   gather_facts: false
   become: true
   serial: 1
+  roles:
+    - role: apps/app_deployment
 
-  tasks:
-    - name: "Apps: Deployment"
-      ansible.builtin.include_role:
-        name: apps/app_deployment
-      tags:
-        - app_deployment
-
-# ============================================================================
-# PLAY 5: QA und Validierung
-# ============================================================================
-
-- name: "PLAY 5: QA Smoke Tests"
+- name: "PLAY 6: QA Smoke Tests"
   hosts: proxmox_servers
   gather_facts: false
   become: true
+  roles:
+    - role: qa_smoke
 
-  tasks:
-    - name: "QA: Smoke Tests"
-      ansible.builtin.include_role:
-        name: qa_smoke
-      tags:
-        - qa_smoke
-
-# =========================================================================
-# PLAY 5b: Hardware Security (Validation-only)
-# =========================================================================
-
-- name: "PLAY 5b: Hardware Security (Validation-only)"
+- name: "PLAY 7: Hardware Security (Validation-only)"
   hosts: proxmox_servers
   gather_facts: true
   become: true
+  roles:
+    - role: hardware/hardware_security
+  tags:
+    - never
+    - hardware_security
 
-  tasks:
-    - name: "Hardware: Security Validation"
-      ansible.builtin.include_role:
-        name: hardware/hardware_security
-      tags:
-        - never
-        - hardware_security
-
-# ============================================================================
-# PLAY 6: Abschluss und Reporting
-# ============================================================================
-
-- name: "PLAY 6: Deployment Abschluss"
+- name: "PLAY 8: Deployment Abschluss"
   hosts: localhost
   gather_facts: false
 
@@ -165,9 +106,8 @@
           - "=========================================="
           - "DEPLOYMENT ERFOLGREICH ABGESCHLOSSEN"
           - "=========================================="
-          - "Profil: {{ hostvars['WIZARD_CONFIG']['wiz_profile'] }}"
-          - "Erstellte VMs: {{ hostvars['WIZARD_CONFIG']['deployment_vms'] }}"
-          - "Deployed Apps: {{ hostvars['WIZARD_CONFIG']['deployment_apps'] }}"
+          - "Inventory: production"
+          - "Targets: proxmox_servers={{ groups['proxmox_servers'] | default([]) }}"
           - "Zeitstempel: {{ ansible_date_time.iso8601 }}"
           - "=========================================="
       tags:

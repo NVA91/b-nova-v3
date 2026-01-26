@@ -2,17 +2,6 @@
 # system_setup Role - Proxmox VE Grundkonfiguration
 
 # ============================================================================
-# Preflight: Hardware Validation
-# ============================================================================
-- name: "Preflight: Run hardware validation"
-  ansible.builtin.include_role:
-    name: hardware/hardware_validation
-  when: hardware_validation_enabled | default(true)
-  tags:
-    - hardware_validation
-    - preflight
-
-# ============================================================================
 # SECTION 1: Proxmox Repository Management
 # ============================================================================
 - name: "Proxmox Repos: Enterprise Repository deaktivieren (keine Subscription)"
@@ -168,8 +157,8 @@
     create: yes
     backup: yes
   vars:
-    vmpool_arc_gb: "{{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int) }}"
-    tank_arc_gb: "{{ ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}).get('zfs_arc_max', '0 GB') | regex_replace(' GB', '') | int) }}"
+    vmpool_arc_gb: "{{ (((hardware_profile | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}) | default({})).get('zfs_arc_max', ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('vm_disk', {}) | default({})).get('zfs_arc_max', '0 GB')) | regex_replace(' GB', '') | int) }}"
+    tank_arc_gb: "{{ (((hardware_profile | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}) | default({})).get('zfs_arc_max', ((nova_hardware | default({})).get('spec', {}).get('storage', {}).get('storage_disk', {}) | default({})).get('zfs_arc_max', '0 GB')) | regex_replace(' GB', '') | int) }}"
     zfs_arc_max_bytes: "{{ ([vmpool_arc_gb | int, tank_arc_gb | int] | max * 1024 * 1024 * 1024) }}"
   when: zfs_enabled | default(false)
   tags:
@@ -259,7 +248,12 @@
       blacklist nvidia_modeset
     create: yes
     mode: '0644'
-  when: (nova_hardware | default({})).get('gpu', {}).get('egpu', {}).get('enabled', false)
+  when: >-
+    (
+      (hardware_profile | default({})).get('gpu', {}).get('egpu', {}).get('enabled', false)
+      or
+      (nova_hardware | default({})).get('gpu', {}).get('egpu', {}).get('enabled', false)
+    )
   tags:
     - system_setup
     - kernel

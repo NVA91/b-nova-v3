@@ -12,7 +12,7 @@ Ein komplettes Re-Build von NOVA v3 mit einer modernen Architektur: FastAPI Back
 
 ## 📁 Projektstruktur
 
-```
+```text
 nnova-v3/
 ├── backend/          # 🐍 FastAPI Backend
 │   ├── app/          # App-Logik
@@ -69,9 +69,9 @@ make up
 
 **Das war's!** NOVA v3 ist jetzt erreichbar:
 
-- **Frontend:** http://localhost
-- **Backend API:** http://localhost:8000
-- **API Docs:** http://localhost:8000/api/docs
+- **Frontend:** <http://localhost>
+- **Backend API:** <http://localhost:8000>
+- **API Docs:** <http://localhost:8000/api/docs>
 
 ## 🎮 Makefile-Kommandos
 
@@ -81,13 +81,40 @@ make up
 - `make logs`: Zeigt Logs an
 - `make clean`: Löscht alle Container und Volumes
 - `make test`: Führt Backend-Tests aus
+- `make controller-up`: Startet den AWX-Controller Stack
+- `make controller-ps`: Zeigt Status des AWX-Controller Stacks
+- `make controller-logs`: Tailed Logs vom AWX-Controller Stack
+- `make controller-down`: Stoppt den AWX-Controller Stack
+- `make controller-deps`: Installiert Ansible Collections (inkl. `awx.awx`)
+- `make controller-configure`: Konfiguriert AWX via Controller-Playbook
+
+## 🧰 Controller (AWX) Quickstart
+
+Der Controller ist eine isolierte AWX-Sandbox (Web + Task + Postgres + Redis) mit Read-only Projekt-Mount und SSH-Key-Passthrough.
+
+```bash
+cp environments/controller/.env.example environments/controller/.env
+# setze in environments/controller/.env mindestens:
+# - AWX_SECRET_KEY
+# - AWX_ADMIN_PASSWORD
+# - POSTGRES_PASSWORD
+
+make controller-up
+make controller-ps
+```
+
+AWX UI: <http://localhost:8080>
+
+Ausführliche Anleitung: `docs/AWX_CONTROLLER_SETUP.md` und `docs/CONTROLLER_SETUP.md`.
 
 ## 🏗️ Architektur
 
 - **Backend:** FastAPI, PostgreSQL, SQLAlchemy
 - **Frontend:** React, TypeScript, Tailwind CSS, Vite
 - **Deployment:** Docker Compose
+
 > Note: The CI Docker job and local deployment expect the docker-compose files to live in `deployment/`. The workflow uses explicit `-f deployment/docker-compose.yml` when running `docker-compose config` and `docker-compose build`. If you keep your compose files elsewhere, update the CI workflow or the `docker` job accordingly.
+
 ## 🤖 4-Agenten-System
 
 - **CORE:** 🧠 Orchestrator

@@ -1,7 +1,109 @@
 ---
-# Production deployment configuration
-deployment_profile: production
-apps_to_deploy:
-  - paperless
-  - postgresql
-  - traefik
+# deployment.yml
+
+common_config:
+  proxmox_version: "9.1"
+  storage:
+    enable_lvm_thin: true
+    enable_directory: true
+
+deployment_profiles:
+  # --- BASIS PROFILE (Ressourcen & Apps) ---
+  minimal:
+    description: "Start-Up (Basis)"
+    agents: ["core", "devops", "security"]
+    install_apps: []
+    resources: { cpu: 6.5, ram: "6.5g" }
+    vms_to_create: []
+    apps_to_deploy: []
+
+  standard:
+    description: "Daily Driver (Office)"
+    agents: ["core", "devops", "security", "research", "health"]
+    install_apps: ["paperless-ngx", "traefik", "portainer", "vaultwarden"]
+    resources: { cpu: 11.5, ram: "15g" }
+    vms_to_create: ["nova-core", "nova-gateway"]
+    apps_to_deploy: ["paperless-ngx", "traefik"]
+
+  full:
+    description: "AI Beast (GPU)"
+    agents: ["all"]
+    install_apps: ["paperless-ngx", "whisper", "ollama", "n8n"]
+    resources: { cpu: 14, ram: "28g" }
+    vms_to_create: ["nova-core", "nova-ai", "nova-media"]
+    apps_to_deploy: ["paperless-ngx", "whisper", "ollama"]
+
+  # --- LOGIK PROFILE (Verhalten & Sicherheit) ---
+  production:
+    environment: "production"
+    actions:
+      preflight: true
+      infra: true
+      apps: true
+      test: true
+      validate: true
+      backup: true
+    security:
+      require_vault: true
+      require_ssh_key: true
+      enable_audit_log: true
+      confirm_before_apply: true
+      enable_dry_run_first: false
+    backup:
+      before_deploy: true
+      retention_days: 30
+    error_handling:
+      enable_rollback: true
+      rollback_on_error: true
+      max_retries: 3
+    monitoring:
+      enable: true
+      logging_enabled: true
+      log_level: "info"
+    proxmox:
+      version_check: true
+      api_validate_certs: true
+    deployment:
+      vms_to_create: "{{ deployment_profiles['full'].vms_to_create }}"
+      apps_to_deploy: "{{ deployment_profiles['full'].apps_to_deploy }}"
+    wiz_target: "proxmox_servers"
+    notifications:
+      enable: false
+      webhook_url: "{{ lookup('env', 'NOVA_NOTIFY_WEBHOOK_URL') | default('') }}"
+
+  proxmox91:
+    environment: "production"
+    proxmox:
+      version_required: "9.1"
+      version_check: true
+      api_version: "latest"
+    actions:
+      preflight: true
+      infra: true
+      apps: true
+      test: false
+      validate: true
+      backup: false
+    features:
+      ceph: false
+      ha: false
+      cloud_init: true
+      qemu_agent: true
+    storage:
+      zfs: false
+      lvm_thin: true
+      directory_storage: true
+    network:
+      sdn: false
+      vlan: true
+      firewall: true
+    vm_defaults:
+      machine: "q35"
+      bios: "ovmf"
+      cpu: "host"
+      numa: false
+      balloon: 0
+    deployment:
+      vms_to_create: "{{ deployment_profiles['standard'].vms_to_create }}"
+      apps_to_deploy: "{{ deployment_profiles['standard'].apps_to_deploy }}"
+    wiz_target: "proxmox_servers"

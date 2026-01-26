@@ -89,5 +89,8 @@ async def request_assistance(request: AssistanceRequest):
             )
         
         return result
+    except HTTPException:
+        # Preserve explicit HTTPExceptions (e.g., 400 for unknown agent)
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

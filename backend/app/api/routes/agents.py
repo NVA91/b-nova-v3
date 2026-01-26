@@ -74,7 +74,7 @@ async def list_agents():
 @router.get("/agents/{agent_id}", response_model=Dict)
 async def get_agent(agent_id: str):
     """
-    Get specific agent details
+    Get specific agent details (legacy: return 'name' as id)
     """
     if agent_id not in AGENTS:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
@@ -83,7 +83,17 @@ async def get_agent(agent_id: str):
     if not agent["enabled"]:
         raise HTTPException(status_code=503, detail=f"Agent '{agent_id}' is disabled")
     
-    return agent
+    return {
+        "id": agent["id"],
+        "name": agent["id"],
+        "display_name": agent["name"],
+        "emoji": agent["emoji"],
+        "role": agent["role"],
+        "description": agent["description"],
+        "enabled": agent["enabled"],
+        "status": "active" if agent["enabled"] else "inactive",
+        "capabilities": agent["capabilities"],
+    }
 
 
 @router.post("/agents/{agent_id}/execute")

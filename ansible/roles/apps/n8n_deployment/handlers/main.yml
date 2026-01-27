@@ -1,0 +1,10 @@
+---
+# handlers/main.yml for n8n_deployment role
+
+- name: reload_systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: restart_n8n
+  ansible.builtin.shell: |
+    cd {{ n8n_base_path }} && docker compose restart

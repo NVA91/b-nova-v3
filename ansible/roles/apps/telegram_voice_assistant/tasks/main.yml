@@ -1,0 +1,201 @@
+---
+# tasks/main.yml for telegram_voice_assistant role
+
+# ============================================================================
+# SECTION 1: Preflight-Checks
+# ============================================================================
+
+- name: "Telegram Voice: Validiere Konfiguration"
+  block:
+    - name: "Telegram Voice: Prüfe Bot Token"
+      ansible.builtin.assert:
+        that:
+          - telegram_bot_token | length > 0
+        fail_msg: "FEHLER: telegram_bot_token muss in host_vars gesetzt werden!"
+        success_msg: "Telegram Bot Token ist konfiguriert"
+
+    - name: "Telegram Voice: Prüfe OpenAI API Key (Cloud-Modus)"
+      ansible.builtin.assert:
+        that:
+          - telegram_voice_openai_api_key | length > 0
+        fail_msg: "FEHLER: telegram_voice_openai_api_key muss für Cloud-Modus gesetzt werden!"
+        success_msg: "OpenAI API Key ist konfiguriert"
+      when: telegram_voice_whisper_mode == "cloud"
+
+  tags:
+    - telegram-voice
+    - preflight
+
+# ============================================================================
+# SECTION 2: Verzeichnisse erstellen
+# ============================================================================
+
+- name: "Telegram Voice: Erstelle Verzeichnisse"
+  block:
+    - name: "Telegram Voice: Erstelle Base-Verzeichnis"
+      ansible.builtin.file:
+        path: "{{ telegram_voice_base_path }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "Telegram Voice: Erstelle Data-Verzeichnisse"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      loop:
+        - "{{ telegram_voice_data_path }}"
+        - "{{ telegram_voice_data_path }}/output"
+        - "{{ telegram_voice_data_path }}/templates"
+
+  tags:
+    - telegram-voice
+    - directories
+
+# ============================================================================
+# SECTION 3: Kopiere Service-Dateien
+# ============================================================================
+
+- name: "Telegram Voice: Kopiere Service-Dateien"
+  block:
+    - name: "Telegram Voice: Prüfe ob Source-Verzeichnis existiert"
+      ansible.builtin.stat:
+        path: "{{ telegram_voice_build_context }}"
+      register: source_dir
+      delegate_to: localhost
+
+    - name: "Telegram Voice: Kopiere Service-Code"
+      ansible.builtin.synchronize:
+        src: "{{ telegram_voice_build_context }}/"
+        dest: "{{ telegram_voice_base_path }}/"
+        delete: no
+        recursive: yes
+      when: source_dir.stat.exists
+
+  tags:
+    - telegram-voice
+    - files
+
+# ============================================================================
+# SECTION 4: Docker Compose Template rendern
+# ============================================================================
+
+- name: "Telegram Voice: Rendere Docker Compose Template"
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ telegram_voice_base_path }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  register: compose_rendered
+  tags:
+    - telegram-voice
+    - templates
+
+# ============================================================================
+# SECTION 5: Environment-Datei erstellen
+# ============================================================================
+
+- name: "Telegram Voice: Erstelle .env-Datei"
+  ansible.builtin.template:
+    src: "telegram-voice.env.j2"
+    dest: "{{ telegram_voice_base_path }}/.env"
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  no_log: true  # Verhindert Token-Logging
+  tags:
+    - telegram-voice
+    - templates
+
+# ============================================================================
+# SECTION 6: Docker Compose Service starten
+# ============================================================================
+
+- name: "Telegram Voice: Starte Docker Compose Service"
+  block:
+    - name: "Telegram Voice: Build und Start"
+      ansible.builtin.shell: |
+        cd {{ telegram_voice_base_path }} && docker compose up -d --build
+      register: compose_up
+      changed_when: "'Started' in compose_up.stdout or 'Created' in compose_up.stdout"
+
+    - name: "Telegram Voice: Warte auf Service-Startup"
+      ansible.builtin.pause:
+        seconds: 15
+
+  tags:
+    - telegram-voice
+    - deploy
+
+# ============================================================================
+# SECTION 7: Validierung
+# ============================================================================
+
+- name: "Telegram Voice: Validiere Deployment"
+  block:
+    - name: "Telegram Voice: Prüfe Container Status"
+      ansible.builtin.shell: |
+        cd {{ telegram_voice_base_path }} && docker compose ps
+      register: container_status
+      changed_when: false
+
+    - name: "Telegram Voice: Zeige Container Status"
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+
+    - name: "Telegram Voice: Prüfe Container Logs"
+      ansible.builtin.shell: |
+        docker logs {{ telegram_voice_container_name }} --tail 20
+      register: container_logs
+      changed_when: false
+
+    - name: "Telegram Voice: Zeige Logs"
+      ansible.builtin.debug:
+        msg: "{{ container_logs.stdout_lines }}"
+
+  tags:
+    - telegram-voice
+    - validation
+
+# ============================================================================
+# SECTION 8: Systemd-Integration (optional)
+# ============================================================================
+
+- name: "Telegram Voice: Erstelle Systemd Service"
+  block:
+    - name: "Telegram Voice: Rendere Systemd Unit"
+      ansible.builtin.template:
+        src: "telegram-voice.service.j2"
+        dest: "/etc/systemd/system/telegram-voice-assistant.service"
+        mode: '0644'
+      notify: reload_systemd
+
+    - name: "Telegram Voice: Aktiviere Systemd Service"
+      ansible.builtin.systemd:
+        name: telegram-voice-assistant
+        enabled: yes
+        daemon_reload: yes
+
+  when: telegram_voice_systemd_enabled
+  tags:
+    - telegram-voice
+    - systemd
+
+# ============================================================================
+# SECTION 9: Abschluss
+# ============================================================================
+
+- name: "Telegram Voice: Deployment abgeschlossen"
+  ansible.builtin.debug:
+    msg:
+      - "Telegram Voice Assistant Deployment erfolgreich abgeschlossen"
+      - "Bot Token: {{ telegram_bot_token[:10] }}..."
+      - "Whisper-Modus: {{ telegram_voice_whisper_mode }}"
+      - "Modell: {{ telegram_voice_whisper_model }}"
+  tags:
+    - telegram-voice

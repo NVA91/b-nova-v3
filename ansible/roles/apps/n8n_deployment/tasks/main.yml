@@ -1,0 +1,226 @@
+---
+# tasks/main.yml for n8n_deployment role
+
+# ============================================================================
+# SECTION 1: Preflight-Checks
+# ============================================================================
+
+- name: "N8N: Validiere Konfiguration"
+  block:
+    - name: "N8N: Prüfe ob Passwort geändert wurde"
+      ansible.builtin.assert:
+        that:
+          - n8n_basic_auth_password != "changeme"
+        fail_msg: "FEHLER: n8n_basic_auth_password muss in host_vars gesetzt werden!"
+        success_msg: "N8N Basic Auth Passwort ist konfiguriert"
+      when: n8n_basic_auth_active
+
+    - name: "N8N: Prüfe PostgreSQL-Konfiguration"
+      ansible.builtin.assert:
+        that:
+          - n8n_db_password != "n8n_password"
+        fail_msg: "FEHLER: n8n_db_password muss in host_vars gesetzt werden!"
+        success_msg: "N8N Datenbank-Passwort ist konfiguriert"
+      when: n8n_db_type == "postgresdb"
+
+  tags:
+    - n8n
+    - preflight
+
+# ============================================================================
+# SECTION 2: Verzeichnisse erstellen
+# ============================================================================
+
+- name: "N8N: Erstelle Verzeichnisse"
+  block:
+    - name: "N8N: Erstelle Base-Verzeichnis"
+      ansible.builtin.file:
+        path: "{{ n8n_base_path }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "N8N: Erstelle Data-Verzeichnis"
+      ansible.builtin.file:
+        path: "{{ n8n_data_path }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "N8N: Erstelle Files-Verzeichnis"
+      ansible.builtin.file:
+        path: "{{ n8n_data_path }}/files"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+  tags:
+    - n8n
+    - directories
+
+# ============================================================================
+# SECTION 3: Datenbank vorbereiten (PostgreSQL)
+# ============================================================================
+
+- name: "N8N: Erstelle PostgreSQL-Datenbank"
+  block:
+    - name: "N8N: Prüfe ob Datenbank existiert"
+      ansible.builtin.shell: |
+        docker exec {{ n8n_db_container_name | default('nova-v3-db') }} \
+        psql -U {{ n8n_db_user }} -lqt | cut -d \| -f 1 | grep -qw {{ n8n_db_name }}
+      register: db_exists
+      failed_when: false
+      changed_when: false
+
+    - name: "N8N: Erstelle Datenbank"
+      ansible.builtin.shell: |
+        docker exec {{ n8n_db_container_name | default('nova-v3-db') }} \
+        psql -U postgres -c "CREATE DATABASE {{ n8n_db_name }};"
+      when: db_exists.rc != 0
+
+    - name: "N8N: Erstelle Datenbank-Benutzer"
+      ansible.builtin.shell: |
+        docker exec {{ n8n_db_container_name | default('nova-v3-db') }} \
+        psql -U postgres -c "CREATE USER {{ n8n_db_user }} WITH PASSWORD '{{ n8n_db_password }}';"
+      when: db_exists.rc != 0
+
+    - name: "N8N: Setze Berechtigungen"
+      ansible.builtin.shell: |
+        docker exec {{ n8n_db_container_name | default('nova-v3-db') }} \
+        psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE {{ n8n_db_name }} TO {{ n8n_db_user }};"
+      when: db_exists.rc != 0
+
+  when: n8n_db_type == "postgresdb"
+  tags:
+    - n8n
+    - database
+
+# ============================================================================
+# SECTION 4: Docker Compose Template rendern
+# ============================================================================
+
+- name: "N8N: Rendere Docker Compose Template"
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ n8n_base_path }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  register: compose_rendered
+  tags:
+    - n8n
+    - templates
+
+# ============================================================================
+# SECTION 5: Environment-Datei erstellen
+# ============================================================================
+
+- name: "N8N: Erstelle .env-Datei"
+  ansible.builtin.template:
+    src: "n8n.env.j2"
+    dest: "{{ n8n_base_path }}/.env"
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  no_log: true  # Verhindert Passwort-Logging
+  tags:
+    - n8n
+    - templates
+
+# ============================================================================
+# SECTION 6: Docker Compose Service starten
+# ============================================================================
+
+- name: "N8N: Starte Docker Compose Service"
+  block:
+    - name: "N8N: Starte N8N Container"
+      ansible.builtin.shell: |
+        cd {{ n8n_base_path }} && docker compose up -d
+      register: compose_up
+      changed_when: "'Started' in compose_up.stdout or 'Created' in compose_up.stdout"
+
+    - name: "N8N: Warte auf Service-Startup"
+      ansible.builtin.pause:
+        seconds: 10
+
+  tags:
+    - n8n
+    - deploy
+
+# ============================================================================
+# SECTION 7: Validierung
+# ============================================================================
+
+- name: "N8N: Validiere Deployment"
+  block:
+    - name: "N8N: Prüfe Container Status"
+      ansible.builtin.shell: |
+        cd {{ n8n_base_path }} && docker compose ps
+      register: container_status
+      changed_when: false
+
+    - name: "N8N: Zeige Container Status"
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+
+    - name: "N8N: Prüfe Port-Erreichbarkeit"
+      ansible.builtin.wait_for:
+        host: localhost
+        port: "{{ n8n_port }}"
+        timeout: 30
+      when: not n8n_traefik_enabled
+
+    - name: "N8N: Prüfe Health-Endpoint"
+      ansible.builtin.uri:
+        url: "http://localhost:{{ n8n_port }}/healthz"
+        method: GET
+        status_code: 200
+      register: health_check
+      failed_when: false
+      retries: 3
+      delay: 5
+
+  tags:
+    - n8n
+    - validation
+
+# ============================================================================
+# SECTION 8: Systemd-Integration (optional)
+# ============================================================================
+
+- name: "N8N: Erstelle Systemd Service"
+  block:
+    - name: "N8N: Rendere Systemd Unit"
+      ansible.builtin.template:
+        src: "n8n.service.j2"
+        dest: "/etc/systemd/system/n8n.service"
+        mode: '0644'
+      notify: reload_systemd
+
+    - name: "N8N: Aktiviere Systemd Service"
+      ansible.builtin.systemd:
+        name: n8n
+        enabled: yes
+        daemon_reload: yes
+
+  when: n8n_systemd_enabled
+  tags:
+    - n8n
+    - systemd
+
+# ============================================================================
+# SECTION 9: Abschluss
+# ============================================================================
+
+- name: "N8N: Deployment abgeschlossen"
+  ansible.builtin.debug:
+    msg:
+      - "N8N Deployment erfolgreich abgeschlossen"
+      - "Zugriff: {{ n8n_protocol }}://{{ n8n_host }}:{{ n8n_port }}"
+      - "Benutzer: {{ n8n_basic_auth_user }}"
+      - "Datenbank: {{ n8n_db_type }}"
+  tags:
+    - n8n

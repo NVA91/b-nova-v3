@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  telegram-voice-assistant:
+    build:
+      context: "{{ telegram_voice_build_context }}"
+      dockerfile: Dockerfile
+    container_name: {{ telegram_voice_container_name }}
+    restart: {{ telegram_voice_restart_policy }}
+    environment:
+      - TELEGRAM_BOT_TOKEN={{ telegram_bot_token }}
+      - WHISPER_MODE={{ telegram_voice_whisper_mode }}
+      - WHISPER_MODEL={{ telegram_voice_whisper_model }}
+      - WHISPER_DEVICE={{ telegram_voice_whisper_device }}
+      - OPENAI_API_KEY={{ telegram_voice_openai_api_key }}
+      - BACKEND_URL={{ telegram_voice_backend_url }}
+      - AI_SERVICE_URL={{ telegram_voice_ai_service_url }}
+      - TEMPLATE_PATH={{ telegram_voice_template_path }}
+      - OUTPUT_PATH={{ telegram_voice_output_path }}
+      - LOG_LEVEL={{ telegram_voice_log_level }}
+    volumes:
+      - {{ telegram_voice_data_path }}/output:{{ telegram_voice_output_path }}
+      - {{ telegram_voice_data_path }}/templates:{{ telegram_voice_template_path }}
+    networks:
+      - nova-v3-network
+    security_opt: {{ telegram_voice_security_opts }}
+    cap_drop: {{ telegram_voice_cap_drop }}
+
+networks:
+  nova-v3-network:
+    external: true
+    name: nova-v3-network

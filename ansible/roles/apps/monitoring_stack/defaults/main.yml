@@ -1,0 +1,54 @@
+---
+# defaults/main.yml for monitoring_stack role
+
+# ============================================================================
+# MONITORING STACK KONFIGURATION
+# ============================================================================
+
+# Base-Pfad für Monitoring-Installation
+monitoring_base_path: "/opt/docker-compose/monitoring"
+
+# Prometheus-Konfiguration
+prometheus_config_path: "{{ monitoring_base_path }}/prometheus"
+prometheus_data_path: "/opt/docker-data/prometheus"
+prometheus_port: 9090
+prometheus_version: "latest"
+
+# Grafana-Konfiguration
+grafana_data_path: "/opt/docker-data/grafana"
+grafana_port: 3000
+grafana_version: "latest"
+grafana_admin_user: "admin"
+grafana_admin_password: "admin"  # MUSS in host_vars überschrieben werden!
+
+# Node Exporter
+node_exporter_port: 9100
+node_exporter_version: "latest"
+
+# cAdvisor
+cadvisor_port: 8080
+cadvisor_version: "latest"
+
+# Blackbox Exporter
+blackbox_config_path: "{{ monitoring_base_path }}/blackbox"
+blackbox_port: 9115
+blackbox_version: "latest"
+
+# ============================================================================
+# SICHERHEIT
+# ============================================================================
+
+# Security Options
+monitoring_security_opts:
+  - "seccomp:unconfined"  # Für LXC-Kompatibilität
+  - "no-new-privileges:true"
+
+# Capabilities
+monitoring_cap_drop:
+  - "ALL"
+
+# ============================================================================
+# RESTART-POLICY
+# ============================================================================
+
+monitoring_restart_policy: "unless-stopped"

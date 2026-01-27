@@ -1,0 +1,188 @@
+---
+# tasks/main.yml for monitoring_stack role (Kombinierte Rolle)
+# Deployed Prometheus, Grafana, Node Exporter, cAdvisor, Blackbox Exporter
+
+# ============================================================================
+# SECTION 1: Preflight-Checks
+# ============================================================================
+
+- name: "Monitoring: Validiere Konfiguration"
+  block:
+    - name: "Monitoring: Prüfe Grafana Admin Passwort"
+      ansible.builtin.assert:
+        that:
+          - grafana_admin_password != "admin"
+        fail_msg: "WARNUNG: Grafana Admin-Passwort sollte geändert werden!"
+        success_msg: "Grafana Admin-Passwort ist konfiguriert"
+      failed_when: false  # Nur Warnung, kein Abbruch
+
+  tags:
+    - monitoring
+    - preflight
+
+# ============================================================================
+# SECTION 2: Verzeichnisse erstellen
+# ============================================================================
+
+- name: "Monitoring: Erstelle Verzeichnisse"
+  block:
+    - name: "Monitoring: Erstelle Base-Verzeichnisse"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      loop:
+        - "{{ monitoring_base_path }}"
+        - "{{ prometheus_config_path }}"
+        - "{{ prometheus_data_path }}"
+        - "{{ grafana_data_path }}"
+        - "{{ grafana_data_path }}/provisioning/datasources"
+        - "{{ grafana_data_path }}/provisioning/dashboards"
+        - "{{ grafana_data_path }}/dashboards"
+        - "{{ blackbox_config_path }}"
+
+  tags:
+    - monitoring
+    - directories
+
+# ============================================================================
+# SECTION 3: Konfigurationsdateien kopieren
+# ============================================================================
+
+- name: "Monitoring: Kopiere Konfigurationsdateien"
+  block:
+    - name: "Monitoring: Kopiere Prometheus-Konfiguration"
+      ansible.builtin.template:
+        src: "prometheus.yml.j2"
+        dest: "{{ prometheus_config_path }}/prometheus.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "Monitoring: Kopiere Prometheus Alert-Regeln"
+      ansible.builtin.template:
+        src: "alerts.yml.j2"
+        dest: "{{ prometheus_config_path }}/alerts.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "Monitoring: Kopiere Blackbox-Konfiguration"
+      ansible.builtin.template:
+        src: "blackbox.yml.j2"
+        dest: "{{ blackbox_config_path }}/blackbox.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "Monitoring: Kopiere Grafana Datasource Provisioning"
+      ansible.builtin.template:
+        src: "grafana-datasource.yml.j2"
+        dest: "{{ grafana_data_path }}/provisioning/datasources/prometheus.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: "Monitoring: Kopiere Grafana Dashboard Provisioning"
+      ansible.builtin.template:
+        src: "grafana-dashboard-provisioning.yml.j2"
+        dest: "{{ grafana_data_path }}/provisioning/dashboards/default.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+  tags:
+    - monitoring
+    - config
+
+# ============================================================================
+# SECTION 4: Docker Compose Template rendern
+# ============================================================================
+
+- name: "Monitoring: Rendere Docker Compose Template"
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ monitoring_base_path }}/docker-compose.yml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  register: compose_rendered
+  tags:
+    - monitoring
+    - templates
+
+# ============================================================================
+# SECTION 5: Docker Compose Service starten
+# ============================================================================
+
+- name: "Monitoring: Starte Monitoring-Stack"
+  block:
+    - name: "Monitoring: Starte alle Services"
+      ansible.builtin.shell: |
+        cd {{ monitoring_base_path }} && docker compose up -d
+      register: compose_up
+      changed_when: "'Started' in compose_up.stdout or 'Created' in compose_up.stdout"
+
+    - name: "Monitoring: Warte auf Service-Startup"
+      ansible.builtin.pause:
+        seconds: 15
+
+  tags:
+    - monitoring
+    - deploy
+
+# ============================================================================
+# SECTION 6: Validierung
+# ============================================================================
+
+- name: "Monitoring: Validiere Deployment"
+  block:
+    - name: "Monitoring: Prüfe Container Status"
+      ansible.builtin.shell: |
+        cd {{ monitoring_base_path }} && docker compose ps
+      register: container_status
+      changed_when: false
+
+    - name: "Monitoring: Zeige Container Status"
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+
+    - name: "Monitoring: Prüfe Prometheus Health"
+      ansible.builtin.uri:
+        url: "http://localhost:{{ prometheus_port }}/-/healthy"
+        method: GET
+        status_code: 200
+      register: prometheus_health
+      failed_when: false
+      retries: 3
+      delay: 5
+
+    - name: "Monitoring: Prüfe Grafana Health"
+      ansible.builtin.uri:
+        url: "http://localhost:{{ grafana_port }}/api/health"
+        method: GET
+        status_code: 200
+      register: grafana_health
+      failed_when: false
+      retries: 3
+      delay: 5
+
+  tags:
+    - monitoring
+    - validation
+
+# ============================================================================
+# SECTION 7: Abschluss
+# ============================================================================
+
+- name: "Monitoring: Deployment abgeschlossen"
+  ansible.builtin.debug:
+    msg:
+      - "Monitoring-Stack erfolgreich deployed"
+      - "Prometheus: http://{{ ansible_fqdn | default('localhost') }}:{{ prometheus_port }}"
+      - "Grafana: http://{{ ansible_fqdn | default('localhost') }}:{{ grafana_port }}"
+      - "Grafana Login: {{ grafana_admin_user }} / {{ grafana_admin_password }}"
+  tags:
+    - monitoring

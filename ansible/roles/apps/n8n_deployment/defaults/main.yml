@@ -1,0 +1,91 @@
+---
+# defaults/main.yml for n8n_deployment role
+
+# ============================================================================
+# N8N KONFIGURATION
+# ============================================================================
+
+# Base-Pfad für N8N Installation
+n8n_base_path: "/opt/docker-compose/n8n"
+n8n_data_path: "/opt/docker-data/n8n"
+
+# N8N Version
+n8n_version: "latest"
+
+# N8N Netzwerk-Konfiguration
+n8n_port: 5678
+n8n_host: "{{ ansible_fqdn | default('localhost') }}"
+n8n_protocol: "http"
+n8n_webhook_url: "http://{{ n8n_host }}/n8n/"
+
+# N8N Basic Auth
+n8n_basic_auth_active: true
+n8n_basic_auth_user: "admin"
+n8n_basic_auth_password: "changeme"  # MUSS in host_vars überschrieben werden!
+
+# Timezone
+n8n_timezone: "Europe/Berlin"
+
+# ============================================================================
+# DATENBANK-KONFIGURATION
+# ============================================================================
+
+# Datenbank-Typ (sqlite oder postgresdb)
+n8n_db_type: "postgresdb"
+
+# PostgreSQL-Verbindung (wenn n8n_db_type == postgresdb)
+n8n_db_host: "db"
+n8n_db_port: 5432
+n8n_db_name: "n8n"
+n8n_db_user: "n8n"
+n8n_db_password: "n8n_password"  # MUSS in host_vars überschrieben werden!
+
+# ============================================================================
+# TELEGRAM-INTEGRATION
+# ============================================================================
+
+# Telegram Bot Token (optional, für Workflows)
+n8n_telegram_bot_token: ""  # MUSS in host_vars gesetzt werden, wenn benötigt
+
+# ============================================================================
+# SICHERHEIT
+# ============================================================================
+
+# Security Options
+n8n_security_opts:
+  - "seccomp:unconfined"  # Für LXC-Kompatibilität
+  - "no-new-privileges:true"
+
+# Capabilities
+n8n_cap_drop:
+  - "ALL"
+
+# ============================================================================
+# TRAEFIK-INTEGRATION
+# ============================================================================
+
+# Traefik Labels aktivieren
+n8n_traefik_enabled: true
+n8n_traefik_entrypoint: "web"
+n8n_traefik_rule: "Host(`{{ n8n_host }}`) && PathPrefix(`/n8n`)"
+
+# HTTPS (Let's Encrypt)
+n8n_traefik_tls_enabled: false
+n8n_traefik_certresolver: "letsencrypt"
+
+# ============================================================================
+# SYSTEMD-INTEGRATION
+# ============================================================================
+
+# Systemd Service aktivieren
+n8n_systemd_enabled: true
+n8n_restart_policy: "unless-stopped"
+
+# ============================================================================
+# BACKUP-KONFIGURATION
+# ============================================================================
+
+# Backup aktivieren
+n8n_backup_enabled: false
+n8n_backup_path: "/opt/backups/n8n"
+n8n_backup_retention_days: 30

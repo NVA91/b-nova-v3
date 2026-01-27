@@ -1,0 +1,126 @@
+# extended_services.yml - Konfiguration für erweiterte Dienste
+#
+# Diese Datei definiert, welche erweiterten Dienste aktiviert sind
+# und enthält globale Konfigurationen.
+
+# ============================================================================
+# SERVICE-AKTIVIERUNG
+# ============================================================================
+
+# N8N Workflow-Automatisierung
+extended_services_n8n_enabled: true
+
+# Telegram Voice Assistant
+extended_services_telegram_enabled: true
+
+# Monitoring-Stack (Prometheus, Grafana, Exporters)
+extended_services_monitoring_enabled: true
+
+# WireGuard VPN (Standard: deaktiviert, da Firewall-Konfiguration erforderlich)
+extended_services_wireguard_enabled: false
+
+# ============================================================================
+# N8N KONFIGURATION
+# ============================================================================
+
+# Basic Auth (MUSS in host_vars/nova-v3.yml überschrieben werden!)
+n8n_basic_auth_user: "admin"
+n8n_basic_auth_password: "changeme"
+
+# Datenbank
+n8n_db_type: "postgresdb"
+n8n_db_name: "n8n"
+n8n_db_user: "n8n"
+n8n_db_password: "changeme"  # MUSS in host_vars überschrieben werden!
+
+# Telegram Bot Token (optional)
+n8n_telegram_bot_token: ""
+
+# ============================================================================
+# TELEGRAM VOICE ASSISTANT KONFIGURATION
+# ============================================================================
+
+# Telegram Bot Token (ERFORDERLICH)
+telegram_bot_token: ""  # MUSS in host_vars gesetzt werden!
+
+# Whisper-Konfiguration
+telegram_voice_whisper_mode: "local"
+telegram_voice_whisper_model: "base"
+telegram_voice_whisper_device: "cpu"
+
+# OpenAI API Key (nur für Cloud-Modus)
+telegram_voice_openai_api_key: ""
+
+# ============================================================================
+# MONITORING KONFIGURATION
+# ============================================================================
+
+# Grafana Admin-Credentials
+grafana_admin_user: "admin"
+grafana_admin_password: "changeme"  # MUSS in host_vars geändert werden!
+
+# Prometheus Retention
+prometheus_retention_time: "30d"
+
+# Monitoring-Targets (interne Services)
+monitoring_internal_targets:
+  - "backend:8000"
+  - "frontend:80"
+  - "ai-service:8000"
+
+# Externe HTTP-Targets
+monitoring_http_targets:
+  - "https://www.google.com"
+  - "https://github.com"
+
+# ICMP-Targets (Ping)
+monitoring_icmp_targets:
+  - "8.8.8.8"
+  - "1.1.1.1"
+
+# ============================================================================
+# WIREGUARD KONFIGURATION
+# ============================================================================
+
+# Server-URL (öffentliche IP oder DynDNS)
+wireguard_serverurl: "auto"
+
+# Port
+wireguard_port: 51820
+
+# Anzahl der Peers
+wireguard_peers: 3
+
+# DNS für Peers
+wireguard_peerdns: "auto"
+
+# Internes Subnet
+wireguard_subnet: "10.13.13.0"
+
+# AllowedIPs (0.0.0.0/0 = Full-Tunnel, 192.168.2.0/24 = Split-Tunnel)
+wireguard_allowedips: "0.0.0.0/0"
+
+# Firewall-Interface (MUSS an System angepasst werden!)
+wireguard_firewall_interface: "eno1"
+
+# ============================================================================
+# TRAEFIK-INTEGRATION
+# ============================================================================
+
+# Traefik für alle Services aktivieren
+n8n_traefik_enabled: true
+prometheus_traefik_enabled: true
+grafana_traefik_enabled: true
+
+# HTTPS (Let's Encrypt) aktivieren
+n8n_traefik_tls_enabled: false
+prometheus_traefik_tls_enabled: false
+grafana_traefik_tls_enabled: false
+
+# ============================================================================
+# SYSTEMD-INTEGRATION
+# ============================================================================
+
+# Systemd Services für Autostart aktivieren
+n8n_systemd_enabled: true
+telegram_voice_systemd_enabled: true

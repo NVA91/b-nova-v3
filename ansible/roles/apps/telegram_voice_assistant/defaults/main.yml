@@ -1,0 +1,92 @@
+---
+# defaults/main.yml for telegram_voice_assistant role
+
+# ============================================================================
+# TELEGRAM VOICE ASSISTANT KONFIGURATION
+# ============================================================================
+
+# Base-Pfad für Installation
+telegram_voice_base_path: "/opt/docker-compose/telegram-voice-assistant"
+telegram_voice_data_path: "/opt/docker-data/telegram-voice"
+
+# Build-Kontext
+telegram_voice_build_context: "{{ playbook_dir }}/../services/telegram-voice-assistant"
+
+# Container-Name
+telegram_voice_container_name: "nova-v3-telegram-voice"
+
+# ============================================================================
+# TELEGRAM BOT KONFIGURATION
+# ============================================================================
+
+# Telegram Bot Token (MUSS in host_vars gesetzt werden!)
+telegram_bot_token: ""
+
+# ============================================================================
+# WHISPER KONFIGURATION
+# ============================================================================
+
+# Whisper-Modus: "local" oder "cloud"
+telegram_voice_whisper_mode: "local"
+
+# Lokales Whisper-Modell (tiny, base, small, medium, large)
+telegram_voice_whisper_model: "base"
+
+# Whisper-Device (cpu oder cuda)
+telegram_voice_whisper_device: "cpu"
+
+# OpenAI API Key (nur für Cloud-Modus)
+telegram_voice_openai_api_key: ""
+
+# ============================================================================
+# BACKEND-INTEGRATION
+# ============================================================================
+
+# Backend API URL
+telegram_voice_backend_url: "http://backend:8000/api"
+
+# AI-Service URL
+telegram_voice_ai_service_url: "http://ai-service:8000"
+
+# ============================================================================
+# DATEIPFADE
+# ============================================================================
+
+# Template-Pfad
+telegram_voice_template_path: "/app/templates"
+
+# Output-Pfad
+telegram_voice_output_path: "/app/output"
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Log-Level (DEBUG, INFO, WARNING, ERROR)
+telegram_voice_log_level: "INFO"
+
+# ============================================================================
+# SICHERHEIT
+# ============================================================================
+
+# Security Options
+telegram_voice_security_opts:
+  - "seccomp:unconfined"  # Für LXC-Kompatibilität
+  - "no-new-privileges:true"
+
+# Capabilities
+telegram_voice_cap_drop:
+  - "ALL"
+
+# ============================================================================
+# RESTART-POLICY
+# ============================================================================
+
+telegram_voice_restart_policy: "unless-stopped"
+
+# ============================================================================
+# SYSTEMD-INTEGRATION
+# ============================================================================
+
+# Systemd Service aktivieren
+telegram_voice_systemd_enabled: true

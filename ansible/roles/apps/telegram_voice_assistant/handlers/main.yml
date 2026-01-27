@@ -1,0 +1,11 @@
+---
+# handlers/main.yml for telegram_voice_assistant role
+
+- name: reload_systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: restart_telegram_voice
+  ansible.builtin.shell: |
+    cd {{ telegram_voice_base_path }} && docker compose restart
+  when: telegram_voice_base_path is defined

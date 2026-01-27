@@ -1,0 +1,135 @@
+---
+# extended_services.yml - Deployment der erweiterten NOVA v3 Dienste
+# 
+# Dieses Playbook deployed:
+#   - N8N Workflow-Automatisierung
+#   - Telegram Voice Assistant
+#   - Monitoring-Stack (Prometheus, Grafana, Exporters)
+#   - WireGuard VPN
+#
+# Verwendung:
+#   ansible-playbook -i inventory/production/ playbooks/extended_services.yml
+#   ansible-playbook -i inventory/production/ playbooks/extended_services.yml --tags n8n
+#   ansible-playbook -i inventory/production/ playbooks/extended_services.yml --tags monitoring
+#   ansible-playbook -i inventory/production/ playbooks/extended_services.yml --check
+
+- name: "NOVA v3 - Extended Services Deployment"
+  hosts: nova_guests
+  become: no
+  gather_facts: yes
+
+  # ============================================================================
+  # PRE-TASKS: Validierung
+  # ============================================================================
+
+  pre_tasks:
+    - name: "Preflight: Zeige Deployment-Info"
+      ansible.builtin.debug:
+        msg:
+          - "==================================================================="
+          - "NOVA v3 - Extended Services Deployment"
+          - "==================================================================="
+          - "Host: {{ inventory_hostname }}"
+          - "User: {{ ansible_user }}"
+          - "Python: {{ ansible_python_version }}"
+          - "==================================================================="
+      tags: always
+
+    - name: "Preflight: Prüfe Docker"
+      ansible.builtin.command: docker --version
+      register: docker_version
+      changed_when: false
+      failed_when: docker_version.rc != 0
+      tags: always
+
+    - name: "Preflight: Prüfe Docker Compose"
+      ansible.builtin.command: docker compose version
+      register: compose_version
+      changed_when: false
+      failed_when: compose_version.rc != 0
+      tags: always
+
+    - name: "Preflight: Prüfe nova-network"
+      ansible.builtin.shell: |
+        docker network inspect nova-network >/dev/null 2>&1
+      register: network_check
+      changed_when: false
+      failed_when: network_check.rc != 0
+      tags: always
+
+  # ============================================================================
+  # ROLLEN
+  # ============================================================================
+
+  roles:
+    # ------------------------------------------------------------------------
+    # AUTOMATISIERUNGS-SERVICES
+    # ------------------------------------------------------------------------
+
+    - role: apps/n8n_deployment
+      tags:
+        - extended
+        - automation
+        - n8n
+      when: extended_services_n8n_enabled | default(true)
+
+    - role: apps/telegram_voice_assistant
+      tags:
+        - extended
+        - automation
+        - telegram
+      when: extended_services_telegram_enabled | default(true)
+
+    # ------------------------------------------------------------------------
+    # MONITORING-SERVICES
+    # ------------------------------------------------------------------------
+
+    - role: monitoring/monitoring_stack
+      tags:
+        - extended
+        - monitoring
+        - prometheus
+        - grafana
+      when: extended_services_monitoring_enabled | default(true)
+
+    # ------------------------------------------------------------------------
+    # INFRASTRUKTUR-SERVICES
+    # ------------------------------------------------------------------------
+
+    - role: infrastructure/wireguard_setup
+      tags:
+        - extended
+        - infrastructure
+        - vpn
+        - wireguard
+      when: extended_services_wireguard_enabled | default(false)
+
+  # ============================================================================
+  # POST-TASKS: Validierung & Zusammenfassung
+  # ============================================================================
+
+  post_tasks:
+    - name: "Post-Deployment: Zeige Container-Status"
+      ansible.builtin.shell: |
+        docker ps --filter "name=nova-v3" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      register: container_status
+      changed_when: false
+      tags: always
+
+    - name: "Post-Deployment: Zeige Status"
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+      tags: always
+
+    - name: "Post-Deployment: Zusammenfassung"
+      ansible.builtin.debug:
+        msg:
+          - "==================================================================="
+          - "Extended Services Deployment abgeschlossen"
+          - "==================================================================="
+          - "N8N:              http://{{ ansible_fqdn | default('localhost') }}/n8n"
+          - "Grafana:          http://{{ ansible_fqdn | default('localhost') }}/grafana"
+          - "Prometheus:       http://{{ ansible_fqdn | default('localhost') }}/prometheus"
+          - "WireGuard:        UDP Port {{ wireguard_port | default('51820') }}"
+          - "==================================================================="
+      tags: always

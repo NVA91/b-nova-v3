@@ -1,0 +1,10 @@
+---
+# tasks/main.yml for wireguard_setup role
+
+- name: "WireGuard: Setup VPN Server"
+  ansible.builtin.debug:
+    msg: "WireGuard VPN Setup - Placeholder"
+  tags:
+    - wireguard
+    - vpn
+    - infrastructure

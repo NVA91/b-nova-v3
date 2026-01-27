@@ -1,0 +1,23 @@
+---
+# defaults/main.yml for wireguard_setup role
+
+# WireGuard Grundkonfiguration
+wireguard_enabled: true
+
+# Server-Konfiguration
+wireguard_serverurl: "auto"
+wireguard_port: 51820
+
+# Peers
+wireguard_peers: 3
+wireguard_peerdns: "auto"
+
+# Netzwerk
+wireguard_subnet: "10.13.13.0"
+wireguard_allowedips: "0.0.0.0/0"
+
+# Firewall
+wireguard_firewall_interface: "eno1"
+
+# Systemd
+wireguard_systemd_enabled: true

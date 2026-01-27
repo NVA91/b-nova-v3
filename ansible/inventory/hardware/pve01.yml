@@ -1,11 +1,10 @@
 ---
-# Hardware profile for pve01 (Single Source of Truth)
-# This file is intended to be loaded into the inventory as:
-#   hardware_profile: "{{ lookup('file', playbook_dir + '/inventory/hardware/pve01.yml') | from_yaml }}"
+# Hardware profile for pve01 (Single Source of Truth) - NO GPU
+# This profile is for the initial, non-GPU deployment.
 
 spec:
   name: "pve01"
-  description: "Mini-PC Proxmox Host mit OCuLink-eGPU"
+  description: "Mini-PC Proxmox Host (Basis-Installation ohne eGPU)"
   type: "mini_pc"
 
   cpu:
@@ -73,24 +72,12 @@ chassis:
   features:
     - "Lüfter-/LED-Steuerung"
 
+# DEAKTIVIERT für Phase 1
 gpu:
   egpu:
-    enabled: true
-    dock:
-      model: "Minisforum DEG1"
-      interface: "OCuLink (PCIe Gen4 x4)"
-    model: "NVIDIA RTX 5060 Ti"
-    vram_gb: 16
+    enabled: false
     passthrough:
-      enabled: true
-      pci_id: "0000:01:00.0"
-      audio_pci_id: "0000:01:00.1"
-      pci_device_id: "10de:2d04"
-      audio_device_id: "10de:22eb"
-      iommu_group: 17
-      vfio_ids:
-        - "10de:2d04"
-        - "10de:22eb"
+      enabled: false
 
 npu:
   enabled: true
@@ -113,18 +100,8 @@ proxmox:
     - 100
     - 105
 
-  gpu_passthrough:
-    kernel_cmdline: "quiet amd_iommu=on iommu=pt vfio-pci.ids=10de:2d04,10de:22eb video=efifb:off"
-    vfio_modules:
-      - vfio
-      - vfio_iommu_type1
-      - vfio_pci
-      - vfio_virqfd
-    blacklist_modules:
-      - nouveau
-      - nvidia
-      - nvidia_drm
-      - nvidia_modeset
+  # DEAKTIVIERT für Phase 1
+  gpu_passthrough: {}
 
 docker:
   global_limits:
@@ -141,10 +118,10 @@ docker:
     security: { cpu_count: 2, memory: "2g", priority: "high" }
     research: { cpu_count: 2, memory: "3g", priority: "medium" }
     dev:      { cpu_count: 2, memory: "2g", priority: "medium" }
-    media:    { cpu_count: 2, memory: "4g", gpu_access: true, priority: "medium" }
+    media:    { cpu_count: 2, memory: "4g", gpu_access: false, priority: "medium" } # GPU-Zugriff deaktiviert
     business: { cpu_count: 1, memory: "2g", priority: "low" }
     health:   { cpu_count: 1, memory: "1g", priority: "low" }
-    ai:       { cpu_count: 3, memory: "6g", gpu_access: true, priority: "high" }
+    ai:       { cpu_count: 3, memory: "6g", gpu_access: false, priority: "high" } # GPU-Zugriff deaktiviert
 
 performance:
   governor: "performance"
@@ -161,15 +138,12 @@ power:
     powersave:
       cpu_governor: "powersave"
       max_cpu_freq: "3.8 GHz"
-      gpu_power_limit: 15
     balanced:
       cpu_governor: "schedutil"
       max_cpu_freq: "4.5 GHz"
-      gpu_power_limit: 25
     performance:
       cpu_governor: "performance"
       max_cpu_freq: "5.1 GHz"
-      gpu_power_limit: 35
 
 monitoring:
   cpu_temp_warning: 80

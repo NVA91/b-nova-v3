@@ -1,0 +1,12 @@
+# Dockerfile für kundenspezifisches n8n-Image
+# Basis: offizielles n8n Image
+
+FROM n8nio/n8n:latest
+
+LABEL maintainer="b-nova"
+
+# Hier können zusätzliche Plugins, Konfigurationen oder Zertifikate kopiert werden.
+# Beispiel:
+# COPY ./custom-credentials /home/node/.n8n/credentials
+
+# Standard-Image ist in der Regel ausreichend; diese Datei erlaubt individuelle Anpassungen.

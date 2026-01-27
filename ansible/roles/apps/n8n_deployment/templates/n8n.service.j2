@@ -1,8 +1,8 @@
 [Unit]
-Description=N8N Automation Service
+Description=N8N Workflow Automation
+Documentation=https://docs.n8n.io/
+After=docker.service
 Requires=docker.service
-After=docker.service network.target
-Wants=network.target
 
 [Service]
 Type=oneshot
@@ -10,9 +10,7 @@ RemainAfterExit=yes
 WorkingDirectory={{ n8n_base_path }}
 ExecStart=/usr/bin/docker compose up -d
 ExecStop=/usr/bin/docker compose down
-ExecReload=/usr/bin/docker compose restart
-TimeoutStartSec=300
-TimeoutStopSec=60
+TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target

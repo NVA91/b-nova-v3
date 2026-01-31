@@ -77,7 +77,7 @@ cp .env.example .env
 
 ```bash
 # Aus dem Hauptverzeichnis
-docker-compose -f environments/controller/docker-compose.yml up -d
+docker compose -f environments/controller/docker-compose.yml up -d
 ```
 
 Alternativ ("Knopfdruck" via Makefile):
@@ -92,7 +92,7 @@ make controller-ps
 Prüfe Status:
 
 ```bash
-docker-compose -f environments/controller/docker-compose.yml ps
+docker compose -f environments/controller/docker-compose.yml ps
 docker logs awx-web
 ```
 
@@ -241,7 +241,7 @@ docker logs awx-postgres
 docker exec awx-postgres pg_isready -U awx
 
 # Neustart
-docker-compose -f environments/controller/docker-compose.yml restart
+docker compose -f environments/controller/docker-compose.yml restart
 ```
 
 ### Playbook-Konfiguration schlägt fehl
@@ -279,8 +279,8 @@ docker exec awx-task ls -la /root/.ssh/
 
 ```bash
 # In .env: AWX_VERSION=24.7.0
-docker-compose -f environments/controller/docker-compose.yml pull
-docker-compose -f environments/controller/docker-compose.yml up -d
+docker compose -f environments/controller/docker-compose.yml pull
+docker compose -f environments/controller/docker-compose.yml up -d
 ```
 
 Oder:

@@ -35,7 +35,7 @@ Mehr: `docs/QUICKSTART.md`
 2. Start AWX stack (on controller host):
 
    ```bash
-   docker-compose -f environments/controller/docker-compose.yml up -d
+   docker compose -f environments/controller/docker-compose.yml up -d
    ```
 
    or use the `awx_setup` role to install/configure:

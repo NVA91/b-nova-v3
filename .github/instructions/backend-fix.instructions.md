@@ -84,7 +84,7 @@ pytest backend/tests/ -v  # Result: 30 passed, 3 skipped
 
 ### 13. Full Stack via Compose (nur auf CI)
 ```bash
-# Requires Docker + docker-compose
+# Requires Docker + docker compose
 ./run-all-tests.sh  # Startet backend/db/ai-service/frontend
 ```
 
@@ -95,7 +95,7 @@ on: workflow_dispatch
 jobs: 
   test: 
     runs-on: ubuntu-latest
-    steps: [checkout, docker-compose up, pytest]
+    steps: [checkout, docker compose up, pytest]
 ```
 
 ***
@@ -118,7 +118,7 @@ pytest tests/ -v
 |--------|--------|-----|
 | **Lokale Tests** | `pytest backend/tests/` | WSL |
 | **CI-Tests triggern** | GitHub Actions → "Run workflow" | Browser |
-| **Compose-Stack** | `docker-compose up` | Server mit Docker |
+| **Compose-Stack** | `docker compose up` | Server mit Docker |
 | **.env wiederherstellen** | `mv backend/.env.bak backend/.env` | Nach Tests |
 
 **Willst du CI-Tests jetzt triggern oder lokale Tests in WSL laufen lassen?** 🚀

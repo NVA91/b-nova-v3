@@ -9,6 +9,12 @@ Diese Checkliste fokussiert Hardware-nahe Risiken (PCIe/eGPU/IOMMU) und sichere 
 - Secure Boot nur aktivieren, wenn kompatibel (Proxmox/GPU-Passthrough beachten)
 - Gerät gegen Zugriff absichern (Rack/abschließbarer Raum)
 
+### OCuLink/eGPU (KRITISCH)
+- OCuLink ist in der Regel **nicht** hotplug‑fähig → feste Power‑Sequenz einhalten:
+  - Host **aus** → Dock/PSU **an** → OCuLink verbinden → Host **starten**
+- DEG1 ist Open‑Frame: mechanische Fixierung der GPU sicherstellen (Kontaktstress vermeiden)
+- PCIe‑Bus‑Renumbering vermeiden: Dock beim Boot **immer** aktiv
+
 ## 2) IOMMU & Passthrough-Isolation (KRITISCH)
 
 - BIOS: SVM + IOMMU aktivieren (AMD)

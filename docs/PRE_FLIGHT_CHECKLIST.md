@@ -16,6 +16,9 @@ Führen Sie diese Prüfungen vor dem Ausführen des ersten Ansible-Playbooks dur
 | **Proxmox Host IP** | `ip a` | Die IP-Adresse des Proxmox-Hosts ist bekannt und im Ansible Inventory (`hosts.yml`) korrekt eingetragen. |
 | **SSH-Zugang** | `ssh root@<proxmox_ip>` | Erfolgreicher Login ohne Passwort (idealerweise mit SSH-Key). |
 | **eGPU-Verbindung (für Phase 2)** | Physische Überprüfung | Die eGPU ist korrekt via OCuLink verbunden und mit Strom versorgt. |
+| **OCuLink Power-Sequence** | Host aus → Dock/PSU an → OCuLink verbinden → Host starten | PCIe‑Gerät wird stabil erkannt (kein Renumbering). |
+| **GPU-Modell** | `nvidia-smi --query-gpu=name --format=csv,noheader` | **RTX 5060 Ti** erkannt. |
+| **PCIe Link (eGPU)** | `lspci -vv -s $(lspci | grep -i nvidia | cut -d' ' -f1) | egrep -i 'LnkCap|LnkSta'` | PCIe Gen4 ×4 (OCuLink) sichtbar. |
 
 ### ✅ Software & System
 

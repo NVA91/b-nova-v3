@@ -1,7 +1,7 @@
 # Makefile
 .PHONY: help setup start stop restart logs clean build deploy
 
-DOCKER_COMPOSE := docker-compose
+DOCKER_COMPOSE := docker compose
 ENV_FILE := .env
 
 help: ## Show this help
@@ -65,16 +65,16 @@ restore-db: ## Restore PostgreSQL database (use: make restore-db FILE=backup.sql
 	@echo "✅ Restore complete"
 
 controller-up:
-	docker-compose -f environments/controller/docker-compose.yml up -d
+	docker compose -f environments/controller/docker-compose.yml up -d
 
 controller-down:
-	docker-compose -f environments/controller/docker-compose.yml down
+	docker compose -f environments/controller/docker-compose.yml down
 
 controller-logs:
-	docker-compose -f environments/controller/docker-compose.yml logs -f
+	docker compose -f environments/controller/docker-compose.yml logs -f
 
 controller-ps:
-	docker-compose -f environments/controller/docker-compose.yml ps
+	docker compose -f environments/controller/docker-compose.yml ps
 
 controller-deps:
 	ansible-galaxy collection install -r ansible/requirements.yml

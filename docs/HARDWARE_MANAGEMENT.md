@@ -12,6 +12,26 @@ This document describes the structure, conventions and processes for managing ha
 - Use a single source of truth: host-specific hardware belongs in `ansible/inventory/hardware/*.yml` and global defaults in `group_vars` where appropriate.
 - Avoid duplicating hardware configuration across `host_vars` and `group_vars` to prevent drift.
 
+## Ziel-Hardware (Proxmox Server, Stand 2026)
+- **Mini‑PC (Host + eGPU‑Anbindung):** AMD Ryzen 7 H255 (ohne NPU)
+- **iGPU:** AMD Radeon 780M
+- **RAM:** 32 GB DDR5 5600 MT/s
+- **Storage:** 1 TB NVMe (System) + 2 TB NVMe (Storage) – WD Black
+- **Netzwerk:** 2 × 2.5G LAN (Realtek 8125BG)
+- **Wireless:** Wi‑Fi 6E + Bluetooth 5.2
+- **OCuLink:** vorhanden (PCIe Gen4 ×4)
+- **eGPU‑Dock:** Minisforum DEG1 (OCuLink Gen4 ×4)
+- **eGPU:** NVIDIA RTX 5060 Ti 16GB
+
+## Weitere Systeme (getrennt geführt)
+- **XMG Neo M21** mit RTX 3080 (intern) ist **nicht** Teil des Proxmox/eGPU‑Setups.
+  - Für den XMG wird ein **eigenes, fixes Hardware‑Profil** geführt.
+
+## Zukunfts-Hardware (Regeln)
+- Änderungen an Hardware **nicht** im Code „mitziehen“, sondern ausschließlich in
+  `ansible/inventory/hardware/<host>.yml` dokumentieren.
+- Neue Geräte nur mit einem eigenen Hardware‑Profil aufnehmen (kein Mischprofil).
+
 ## How to add/update hardware
 1. Add or edit `ansible/inventory/hardware/<host>.yml` with the validated data (CPU, RAM, storage, GPU passthrough IDs).
 2. If the hardware matches a template, populate a new file from the appropriate template in `templates/` and adjust fields.

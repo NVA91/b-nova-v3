@@ -87,7 +87,7 @@ ansible-playbook playbooks/docker_setup.yml -i inventory/hosts.yml
 
 Deploy applications and run application tests on a dedicated host group `app_hosts` (a VM/LXC that runs your Docker stacks).
 
-- Add your app host(s) to inventory as `app_hosts` (example below). This should be the VM where docker-compose runs your app stack, *not* the Proxmox management node.
+- Add your app host(s) to inventory as `app_hosts` (example below). This should be the VM where docker compose runs your app stack, *not* the Proxmox management node.
 
 Example inventory snippet (in `ansible/inventory/hosts.yml`):
 

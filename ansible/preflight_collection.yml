@@ -1,16 +1,21 @@
-- name: Preflight: Hardware-Kompatibilität
-  import_tasks: tasks/preflight_checks.yml
-  tags:
-    - preflight
+- name: Preflight Collection (lokal)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: "Preflight: Hardware-Kompatibilität"
+      import_tasks: tasks/preflight_checks.yml
+      tags:
+        - preflight
 
-- name: Preflight: GPU-Gesundheitsprüfung (RTX 5060 Ti only)
-  import_tasks: tasks/gpu_health_check.yml
-  tags:
-    - preflight
-    - gpu_check
+    - name: "Preflight: GPU-Gesundheitsprüfung (RTX 5060 Ti only)"
+      import_tasks: tasks/gpu_health_check.yml
+      tags:
+        - preflight
+        - gpu_check
 
-- name: Preflight: SSD SMART-Status prüfen (nvme2n1)
-  import_tasks: tasks/ssd_protection.yml
-  tags:
-    - preflight
-    - ssd_check
+    - name: "Preflight: SSD SMART-Status prüfen (nvme2n1)"
+      import_tasks: tasks/ssd_protection.yml
+      tags:
+        - preflight
+        - ssd_check

@@ -1,7 +1,7 @@
 - name: Stelle sicher, dass Ziel erreichbar ist (Ping)
   ansible.builtin.ping:
 
-- name: Validierung: OS ist Linux
+- name: "Validierung: OS ist Linux"
   ansible.builtin.assert:
     that:
       - ansible_system == "Linux"

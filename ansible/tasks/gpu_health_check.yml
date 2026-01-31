@@ -23,13 +23,13 @@
     gpu_pci_id: "{{ '10de:' ~ gpu_info.stdout_lines[0].split(',')[1] | trim }}"
     gpu_temp: "{{ gpu_info.stdout_lines[0].split(',')[2] | int }}"
 
-- name: Validierung: GPU-Modell ist RTX 5060 Ti (nicht 3080!)
+- name: "Validierung: GPU-Modell ist RTX 5060 Ti (nicht 3080!)"
   ansible.builtin.assert:
     that:
       - "'RTX 5060 Ti' in gpu_model"
     fail_msg: "⚠️ Falsches GPU-Modell erkannt: {{ gpu_model }}. RTX 3080 oder andere GPUs dürfen NICHT verwendet werden!"
 
-- name: Validierung: PCI-ID passt zum Hardwareprofil
+- name: "Validierung: PCI-ID passt zum Hardwareprofil"
   ansible.builtin.assert:
     that:
       - gpu_pci_id == hardware_profile.gpu.egpu.pci_id

@@ -1,9 +1,14 @@
-- name: SSH-Key Setup durchführen
-  import_tasks: tasks/ssh_key_setup.yml
-  tags:
-    - ssh_setup
+- name: Preflight Main (lokal)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: SSH-Key Setup durchführen
+      import_tasks: tasks/ssh_key_setup.yml
+      tags:
+        - ssh_setup
 
-- name: Netzwerkstatus scannen
-  import_tasks: tasks/network_security_check.yml
-  tags:
-    - net_scan
+    - name: Netzwerkstatus scannen
+      import_tasks: tasks/network_security_check.yml
+      tags:
+        - net_scan

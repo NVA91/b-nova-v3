@@ -129,8 +129,6 @@ Ausführliche Anleitung: `docs/AWX_CONTROLLER_SETUP.md` und `docs/CONTROLLER_SET
 - **Frontend:** React, TypeScript, Tailwind CSS, Vite
 - **Deployment:** Docker Compose
 
-> Note: The CI Docker job and local deployment expect the docker-compose files to live in `deployment/`. The workflow uses explicit `-f deployment/docker-compose.yml` when running `docker-compose config` and `docker-compose build`. If you keep your compose files elsewhere, update the CI workflow or the `docker` job accordingly.
-
 ## 🤖 4-Agenten-System
 
 - **CORE:** 🧠 Orchestrator

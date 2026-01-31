@@ -56,7 +56,7 @@ async def create_task(task: dict):
 
     task_id = str(uuid4())
     now = datetime.utcnow().isoformat()
-    
+
     task_data = {
         "task_id": task_id,
         "agent_id": agent_id,
@@ -67,7 +67,7 @@ async def create_task(task: dict):
         "updated_at": now,
         "result": None
     }
-    
+
     TASKS[task_id] = task_data
     # Return legacy response shape expected by tests
     return {
@@ -88,13 +88,13 @@ async def list_tasks(agent_id: Optional[str] = None, status: Optional[str] = Non
     List all tasks with optional filters
     """
     tasks = list(TASKS.values())
-    
+
     if agent_id:
         tasks = [t for t in tasks if t["agent_id"] == agent_id]
-    
+
     if status:
         tasks = [t for t in tasks if t["status"] == status]
-    
+
     return [TaskResponse(**t) for t in tasks]
 
 
@@ -125,7 +125,7 @@ async def delete_task(task_id: str):
     """
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-    
+
     del TASKS[task_id]
     return {"message": f"Task '{task_id}' deleted"}
 
@@ -158,15 +158,15 @@ async def cancel_task(task_id: str):
     """
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found")
-    
+
     task = TASKS[task_id]
     if task["status"] in ["completed", "failed", "cancelled"]:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot cancel task with status '{task['status']}'"
         )
-    
+
     task["status"] = "cancelled"
     task["updated_at"] = datetime.utcnow().isoformat()
-    
+
     return TaskResponse(**task)

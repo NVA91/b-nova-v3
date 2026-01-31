@@ -1,6 +1,6 @@
 ---
 # extended_services.yml - Deployment der erweiterten NOVA v3 Dienste
-# 
+#
 # Dieses Playbook deployed:
 #   - N8N Workflow-Automatisierung
 #   - Telegram Voice Assistant

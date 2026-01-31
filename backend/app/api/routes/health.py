@@ -25,12 +25,12 @@ async def health_check(db: Session = Depends(get_db)):
         db_status = "healthy"
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
-    
+
     # Get system metrics
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
-    
+
     return {
         "status": "healthy" if db_status == "healthy" else "degraded",
         "timestamp": datetime.utcnow().isoformat(),

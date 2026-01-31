@@ -196,7 +196,7 @@
   ansible.builtin.apt:
     name: linux-image-amd64
     state: absent
-  when: 
+  when:
     - ansible_facts['os_family'] == 'Debian'
     - remove_debian_kernel | default(false) | bool
   tags:
@@ -343,7 +343,7 @@
     marker: "# {mark} ANSIBLE MANAGED BLOCK - DOCKER PERMISSIONS"
     block: |
       lxc.apparmor.profile: unconfined
-      lxc.cap.drop: 
+      lxc.cap.drop:
       lxc.cgroup.devices.allow: a
     backup: yes
   loop: "{{ lxc_container_ids }}"

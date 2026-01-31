@@ -8,12 +8,12 @@ from .config import get_settings
 from .api.routes import agents, health, tasks, guardian, wizard
 
 # Ensure models are imported so their tables exist during tests
-import app.models
+import app.models  # noqa: F401
 
 settings = get_settings()
 
-# Create FastAPI app
-app = FastAPI(
+# Create FastAPI application instance
+nova_app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="NOVA v3 - AI-Agent System for Infrastructure-as-Code",
@@ -22,7 +22,7 @@ app = FastAPI(
 )
 
 # CORS Middleware
-app.add_middleware(
+nova_app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
@@ -31,18 +31,22 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(health.router, tags=["Health"])
+nova_app.include_router(health.router, tags=["Health"])
 # Mount both v1 and legacy /api prefixes for backward compatibility
-app.include_router(agents.router, prefix=settings.API_V1_PREFIX, tags=["Agents"])
-app.include_router(agents.router, prefix="/api", tags=["Agents (legacy)"])
-app.include_router(tasks.router, prefix=settings.API_V1_PREFIX, tags=["Tasks"])
-app.include_router(tasks.router, prefix="/api", tags=["Tasks (legacy)"])
-app.include_router(guardian.router, prefix=settings.API_V1_PREFIX, tags=["Guardian"])
-app.include_router(guardian.router, prefix="/api", tags=["Guardian (legacy)"])
-app.include_router(wizard.router, tags=["Wizard"])
+nova_app.include_router(agents.router, prefix=settings.API_V1_PREFIX, tags=["Agents"])
+nova_app.include_router(agents.router, prefix="/api", tags=["Agents (legacy)"])
+nova_app.include_router(tasks.router, prefix=settings.API_V1_PREFIX, tags=["Tasks"])
+nova_app.include_router(tasks.router, prefix="/api", tags=["Tasks (legacy)"])
+nova_app.include_router(guardian.router, prefix=settings.API_V1_PREFIX, tags=["Guardian"])
+nova_app.include_router(guardian.router, prefix="/api", tags=["Guardian (legacy)"])
+nova_app.include_router(wizard.router, tags=["Wizard"])
 
 
-@app.on_event("startup")
+# Alias for uvicorn (uvicorn app.main:app)
+app = nova_app  # noqa: F811
+
+
+@nova_app.on_event("startup")
 async def startup_event():
     """Initialize application on startup"""
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} starting...")
@@ -53,13 +57,13 @@ async def startup_event():
           f"GUARDIAN={settings.AGENT_GUARDIAN_ENABLED}")
 
 
-@app.on_event("shutdown")
+@nova_app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
     print(f"🛑 {settings.APP_NAME} shutting down...")
 
 
-@app.get("/")
+@nova_app.get("/")
 async def root():
     """Root endpoint"""
     return {

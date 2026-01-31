@@ -2,36 +2,37 @@
 # security.yml
 
 preflight_checks:
-	proxmox:
-		version_check: true
-		version_required: "9.1"
-		strict_api_check: false
+  proxmox:
+    version_check: true
+    version_required: "9.1"
+    strict_api_check: false
 
-	vault:
-		require: true
-		password_file: ".vault_pass"
+  vault:
+    require: true
+    password_file: ".vault_pass"
 
-	ssh:
-		require_key: true
-		private_key_file: "~/.ssh/id_ed25519"
+  ssh:
+    require_key: true
+    private_key_file: "~/.ssh/id_ed25519"
 
-	storage:
-		enable_checks: true
-		strict_check: false
-		min_free_space_gb: 10
+  storage:
+    enable_checks: true
+    strict_check: false
+    min_free_space_gb: 10
 
-	resources:
-		min_ram_mb: 4096
-		min_disk_space_bytes: 20000000000
+  resources:
+    min_ram_mb: 4096
+    min_disk_space_bytes: 20000000000
 
-	network:
-		ports_required:
-			traefik_http: 80
-			traefik_https: 443
-			jellyfin: 8096
+  network:
+    ports_required:
+      traefik_http: 80
+      traefik_https: 443
+      jellyfin: 8096
 
-	services:
-		docker_running: true
-		dns_resolution_required: true
+  services:
+    docker_running: true
+    dns_resolution_required: true
 
-	controller_mode: false
+  controller_mode: false
+

@@ -3,7 +3,7 @@
 """
 import pytest
 import asyncio
-from typing import AsyncGenerator, Generator
+from typing import Generator
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -53,7 +53,7 @@ def client(db_session) -> Generator:
             yield db_session
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client

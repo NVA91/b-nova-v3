@@ -34,7 +34,7 @@ async def predict_resource_usage(minutes_ahead: int = 5) -> Dict:
     try:
         if minutes_ahead < 1 or minutes_ahead > 60:
             raise HTTPException(status_code=400, detail="minutes_ahead must be between 1 and 60")
-        
+
         return guardian.predict_resource_usage(minutes_ahead)
     except HTTPException:
         raise

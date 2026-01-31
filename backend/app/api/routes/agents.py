@@ -78,11 +78,11 @@ async def get_agent(agent_id: str):
     """
     if agent_id not in AGENTS:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    
+
     agent = AGENTS[agent_id]
     if not agent["enabled"]:
         raise HTTPException(status_code=503, detail=f"Agent '{agent_id}' is disabled")
-    
+
     return {
         "id": agent["id"],
         "name": agent["id"],
@@ -103,11 +103,11 @@ async def execute_agent_task(agent_id: str, task: Dict):
     """
     if agent_id not in AGENTS:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    
+
     agent = AGENTS[agent_id]
     if not agent["enabled"]:
         raise HTTPException(status_code=503, detail=f"Agent '{agent_id}' is disabled")
-    
+
     # TODO: Implement actual task execution logic
     return {
         "agent_id": agent_id,
@@ -125,7 +125,7 @@ async def get_agent_status(agent_id: str):
     """
     if agent_id not in AGENTS:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    
+
     agent = AGENTS[agent_id]
     # normalize status to active/inactive/error for legacy tests
     status = "active" if agent["enabled"] else "inactive"

@@ -17,7 +17,7 @@ samba_shares:
     guest_ok: "yes"
     create_mask: "0664"
     directory_mask: "0775"
-  
+
   - name: "private"
     path: "/srv/samba/private"
     comment: "Private Share"

@@ -2,7 +2,6 @@
 🌱 NOVA v3 Database Seeder
 Füllt die Datenbank mit initialen Daten für die 4 Agenten
 """
-import asyncio
 from sqlalchemy import create_engine, text
 from app.config import settings
 
@@ -22,7 +21,7 @@ AGENTS = [
         "name": "FORGE",
         "emoji": "⚒️",
         "role": "Development & Deployment",
-        "description": "Zuständig für Code-Entwicklung, Builds und Deployments. Nutzt wizzad.sh für Infrastruktur-Deployments.",
+        "description": "Zuständig für Code-Entwicklung, Builds und Deployments.",
         "capabilities": ["coding", "building", "deployment", "docker", "ansible"],
         "enabled": True,
     },
@@ -50,9 +49,9 @@ AGENTS = [
 def seed_database():
     """Seeds the database with initial data"""
     print("🌱 Starting database seeding...")
-    
+
     engine = create_engine(settings.DATABASE_URL)
-    
+
     with engine.connect() as conn:
         # Create agents table if not exists
         conn.execute(text("""
@@ -69,7 +68,7 @@ def seed_database():
             )
         """))
         conn.commit()
-        
+
         # Insert agents
         for agent in AGENTS:
             # Check if agent exists
@@ -77,7 +76,7 @@ def seed_database():
                 text("SELECT id FROM agents WHERE id = :id"),
                 {"id": agent["id"]}
             )
-            
+
             if result.fetchone() is None:
                 # Insert new agent
                 conn.execute(
@@ -98,9 +97,9 @@ def seed_database():
                 print(f"✓ Created agent: {agent['name']} ({agent['emoji']})")
             else:
                 print(f"⚠ Agent already exists: {agent['name']}")
-        
+
         conn.commit()
-        
+
         # Create tasks table if not exists
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS tasks (
@@ -116,9 +115,9 @@ def seed_database():
             )
         """))
         conn.commit()
-        
+
         print("✓ Database tables created")
-    
+
     print("🎉 Database seeding completed!")
 
 

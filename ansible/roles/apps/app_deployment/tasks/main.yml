@@ -118,7 +118,7 @@
         port: "{{ item.value.ports[0].split(':')[0] }}"
         timeout: 30
       loop: "{{ apps_config | dict2items }}"
-      when: 
+      when:
         - item.key in apps_to_deploy
         - item.value.ports is defined
       failed_when: false
@@ -128,7 +128,7 @@
       ansible.builtin.debug:
         msg: "Port {{ item.item.value.ports[0].split(':')[0] }} für {{ item.item.key }} ist erreichbar"
       loop: "{{ port_check.results }}"
-      when: 
+      when:
         - item.item.value.ports is defined
         - not item.failed
 

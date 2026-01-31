@@ -13,7 +13,7 @@
     content: |
       [Match]
       MACAddress={{ ansible_default_ipv4.macaddress }}
-      
+
       [Link]
       Name=eno1
     mode: '0644'
@@ -27,7 +27,7 @@
     content: |
       [Match]
       MACAddress={{ secondary_nic_mac | default('') }}
-      
+
       [Link]
       Name=eno2
     mode: '0644'

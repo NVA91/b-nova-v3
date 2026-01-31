@@ -74,7 +74,7 @@ async def request_assistance(request: AssistanceRequest):
     """Request Wizard assistance for an agent."""
     agent = request.agent.lower()
     task = request.task
-    
+
     try:
         if agent == "forge":
             result = await wizard_service.assist_forge(task)
@@ -87,7 +87,7 @@ async def request_assistance(request: AssistanceRequest):
                 status_code=400,
                 detail=f"Unknown agent: {agent}. Supported: forge, phoenix, guardian"
             )
-        
+
         return result
     except HTTPException:
         # Preserve explicit HTTPExceptions (e.g., 400 for unknown agent)

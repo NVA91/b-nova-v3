@@ -20,7 +20,7 @@ apps_config:
   # --- INFRASTRUKTUR ---
   traefik:
     template: "traefik.yml.j2"
-    ports: 
+    ports:
       - "80:80"
       - "443:443"
       - "8080:8080" # Dashboard
@@ -58,7 +58,7 @@ apps_config:
       - "11434:11434"
     restart: "always"
     # Hier könnten wir später GPU-Passthrough Flags hinzufügen
-  
+
   whisper:
     template: "whisper.yml.j2"
     ports:

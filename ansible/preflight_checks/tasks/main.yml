@@ -25,15 +25,15 @@
       - nvme_count.stdout | int == 3
     fail_msg: |
       ❌ KRITISCHER FEHLER: Falsche Anzahl NVMe-SSDs!
-      
+
       Erwartet: 3 SSDs
       Gefunden: {{ nvme_count.stdout }}
-      
+
       Erwartete Konfiguration:
         - /dev/nvme0n1: 2TB WD Black (VM Storage)
         - /dev/nvme1n1: 2TB Storage SSD (General Storage)
         - /dev/nvme2n1: 1TB System SSD (Proxmox/Boot)
-      
+
       Bitte Hardware prüfen und erneut versuchen!
     success_msg: "✅ Storage-Validierung erfolgreich: 3 NVMe-SSDs gefunden"
   tags:
@@ -63,10 +63,10 @@
       - nvme_sizes.stdout is search('1T') or nvme_sizes.stdout is search('931G')
     fail_msg: |
       ⚠️ WARNUNG: Storage-Größen stimmen nicht mit erwarteter Konfiguration überein!
-      
+
       Gefundene SSDs:
       {{ nvme_sizes.stdout_lines | join('\n') }}
-      
+
       Bitte manuell prüfen, ob die Zuordnung korrekt ist:
         - 2x 2TB SSDs (VM + Storage)
         - 1x 1TB SSD (System)
@@ -92,14 +92,14 @@
       - egpu_check.rc == 0
     fail_msg: |
       ❌ KRITISCHER FEHLER: eGPU nicht gefunden!
-      
+
       Erwartete Hardware: NVIDIA RTX 5060 Ti (via OCuLink)
-      
+
       Mögliche Ursachen:
         - OCuLink-Kabel nicht angeschlossen
         - eGPU-Dock ausgeschaltet
         - BIOS-Einstellungen falsch (PCIe-Hotplug deaktiviert)
-      
+
       Bitte Hardware prüfen und erneut versuchen!
     success_msg: "✅ eGPU gefunden: {{ egpu_check.stdout }}"
   when: nova_hardware.gpu.egpu.enabled | default(false)
@@ -124,14 +124,14 @@
       - npu_check.rc == 0
     fail_msg: |
       ⚠️ WARNUNG: NPU nicht gefunden!
-      
+
       Erwartete Hardware: AMD XDNA NPU (PCI-ID 1022:1502)
-      
+
       Mögliche Ursachen:
         - BIOS-Einstellung deaktiviert NPU
         - Kernel zu alt (< 6.8)
         - NPU-Treiber nicht geladen
-      
+
       NPU ist optional, Rollout wird fortgesetzt.
     success_msg: "✅ NPU gefunden: {{ npu_check.stdout }}"
   when: nova_hardware.npu.enabled | default(false)
@@ -154,10 +154,10 @@
       - kernel_version.stdout is version('6.8', '>=')
     fail_msg: |
       ⚠️ WARNUNG: Kernel-Version zu alt für NPU-Support!
-      
+
       Aktuelle Version: {{ kernel_version.stdout }}
       Erforderlich: >= 6.8
-      
+
       NPU wird nicht verfügbar sein. Bitte Kernel aktualisieren.
     success_msg: "✅ Kernel-Version ausreichend: {{ kernel_version.stdout }}"
   when: nova_hardware.npu.enabled | default(false)
@@ -171,10 +171,10 @@
       - ansible_memtotal_mb >= 30720  # 30 GB minimum
     fail_msg: |
       ❌ KRITISCHER FEHLER: Nicht genug RAM!
-      
+
       Gefunden: {{ ansible_memtotal_mb }} MB
       Erforderlich: >= 32 GB (30720 MB)
-      
+
       ZFS ARC und Docker benötigen mindestens 32 GB RAM!
     success_msg: "✅ RAM ausreichend: {{ ansible_memtotal_mb }} MB"
   tags:

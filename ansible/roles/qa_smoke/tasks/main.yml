@@ -143,12 +143,12 @@
       Status: {{ qa_status }}
       Messages: {{ qa_messages | join(', ') if qa_messages else 'none' }}
       Date: {{ ansible_date_time.iso8601 }}
-      
+
       Preflight Checks:
       - Sudo: {{ 'OK' if become_check.rc == 0 else 'FAILED' }}
       - Disk Space: {{ (root_free.stdout | trim | int / 1024) | round(2) }} MB
       - Python3: {{ 'OK' if python_check.rc == 0 else 'MISSING' }}
-      
+
       Post-Deploy Checks:
       - Docker: {{ 'OK' if docker_check.rc == 0 else 'NOT AVAILABLE' }}
   become: true

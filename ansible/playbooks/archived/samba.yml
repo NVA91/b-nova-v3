@@ -5,7 +5,7 @@
 - name: Configure Samba Server
   hosts: samba_servers
   become: yes
-  
+
   vars:
     # Custom Samba shares
     samba_shares:
@@ -18,7 +18,7 @@
         valid_users: "nova,admin"
         create_mask: "0664"
         directory_mask: "0775"
-      
+
       - name: "backups"
         path: "/data/backups"
         comment: "NOVA v3 Backups"
@@ -28,17 +28,17 @@
         valid_users: "admin"
         create_mask: "0660"
         directory_mask: "0770"
-    
+
     # Samba users
     samba_users:
       - username: "nova"
         password: "{{ samba_nova_password | default('changeme') }}"
       - username: "admin"
         password: "{{ samba_admin_password | default('changeme') }}"
-  
+
   roles:
     - samba
-  
+
   post_tasks:
     - name: Display Samba status
       ansible.builtin.debug:

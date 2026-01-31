@@ -1,13 +1,15 @@
 # docker-compose.yml
+# NOVA v3 - AI Agent Infrastructure Automation System
+# Bereinigt: 2026-01-31
 version: '3.9'
 
 ################################################################
 # NETWORKS
 ################################################################
 networks:
-  ai-dashboard-network:
+  nova-network:
     driver: bridge
-    name: ai-dashboard-network
+    name: nova-network
     ipam:
       config:
         - subnet: 172.29.0.0/16
@@ -16,13 +18,15 @@ networks:
 # VOLUMES
 ################################################################
 volumes:
-  postgres-data:
+  postgres_data:
     driver: local
-  redis-data:
+  redis_data:
     driver: local
-  n8n-data:
+  n8n_data:
     driver: local
-  traefik-certs:
+  traefik_certs:
+    driver: local
+  frontend_dist:
     driver: local
 
 ################################################################
@@ -58,7 +62,7 @@ services:
   # ──────────────────────────────────────────────────────────
   traefik:
     image: traefik:v2.11
-    container_name: ai-traefik
+    container_name: nova-v3-traefik
     <<: *restart-policy
     ports:
       - "80:80"
@@ -66,25 +70,24 @@ services:
       - "8080:8080"
     environment:
       <<: *common-env
-      ACME_EMAIL: ${ACME_EMAIL}
-      TRAEFIK_DASHBOARD_AUTH: ${TRAEFIK_DASHBOARD_AUTH}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      TRAEFIK_DASHBOARD_AUTH: ${TRAEFIK_DASHBOARD_AUTH:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
-      - traefik-certs:/letsencrypt
+      - traefik_certs:/letsencrypt
     labels:
       - "traefik.enable=true"
-      
       # Dashboard
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls=true"
       - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.middlewares=auth@file,security-headers@file"
     networks:
-      - ai-dashboard-network
+      - nova-network
     logging: *default-logging
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
@@ -95,23 +98,23 @@ services:
   # ──────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
-    container_name: ai-db
+    container_name: nova-v3-db
     <<: *restart-policy
     environment:
       <<: *common-env
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER:-nova}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-nova_password}
+      POSTGRES_DB: ${DB_NAME:-nova_v3}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - ai-dashboard-network
+      - nova-network
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-nova} -d ${DB_NAME:-nova_v3}"]
       <<: *healthcheck-defaults
     # Nicht exponiert (nur intern)
 
@@ -120,18 +123,18 @@ services:
   # ──────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: ai-redis
+    container_name: nova-v3-redis
     <<: *restart-policy
     command: >
       redis-server
       --appendonly yes
-      --requirepass ${REDIS_PASSWORD}
+      --requirepass ${REDIS_PASSWORD:-change_me_redis_password}
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
     volumes:
-      - redis-data:/data
+      - redis_data:/data
     networks:
-      - ai-dashboard-network
+      - nova-network
     logging: *default-logging
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
@@ -146,225 +149,47 @@ services:
       dockerfile: Dockerfile
       args:
         ENVIRONMENT: ${ENVIRONMENT:-production}
-    container_name: ai-backend
+    container_name: nova-v3-backend
     <<: *restart-policy
     environment:
       <<: *common-env
       # Database
-      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      DATABASE_URL: postgresql://${DB_USER:-nova}:${DB_PASSWORD:-nova_password}@db:5432/${DB_NAME:-nova_v3}
       # Redis
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change_me_redis_password}@redis:6379/0
       # Security
-      SECRET_KEY: ${SECRET_KEY}
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
       # CORS
-      BACKEND_CORS_ORIGINS: '["https://${DOMAIN}","https://www.${DOMAIN}"]'
+      BACKEND_CORS_ORIGINS: '["https://${DOMAIN:-localhost}","https://www.${DOMAIN:-localhost}","http://localhost:5173","http://localhost:3000"]'
       # Environment
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DEBUG: ${DEBUG:-false}
+    # Erzwungener Startbefehl mit asyncio-Loop
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
+    # Security hardening for Proxmox LXC
+    security_opt:
+      - seccomp:unconfined
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - ai-dashboard-network
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      <<: *healthcheck-defaults
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api.${DOMAIN}`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls=true"
-      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
-      - "traefik.http.routers.backend.middlewares=security-headers@file,rate-limit@file,compress@file"
-
-  # ──────────────────────────────────────────────────────────
-  # FRONTEND (React + Vite + TypeScript)
-  # ──────────────────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.multistage
-      args:
-        VITE_API_URL: https://api.${DOMAIN}
-        VITE_WS_URL: wss://api.${DOMAIN}
-    container_name: ai-frontend
-    <<: *restart-policy
-    depends_on:
-      - backend
-    networks:
-      - ai-dashboard-network
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
-      <<: *healthcheck-defaults
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls=true"
-      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      - "traefik.http.routers.frontend.middlewares=security-headers@file,compress@file"
-
-  # ──────────────────────────────────────────────────────────
-  # AI SERVICE (Python ML Service)
-  # ──────────────────────────────────────────────────────────
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: ai-service
-    <<: *restart-policy
-    environment:
-      <<: *common-env
-      MODEL_PATH: /models
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
-      BACKEND_URL: http://backend:8000
-      CUDA_VISIBLE_DEVICES: "0"
-    volumes:
-      - ./models:/models:ro
-    depends_on:
-      - redis
-      - backend
-    networks:
-      - ai-dashboard-network
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      <<: *healthcheck-defaults
-    # GPU Passthrough (wenn verfügbar)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  # ──────────────────────────────────────────────────────────
-  # N8N (Workflow Automation)
-  # ──────────────────────────────────────────────────────────
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: ai-n8n
-    <<: *restart-policy
-    environment:
-      <<: *common-env
-      # Authentication
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: ${N8N_USER}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD}
-      # URLs
-      N8N_HOST: n8n.${DOMAIN}
-      N8N_PROTOCOL: https
-      WEBHOOK_URL: https://n8n.${DOMAIN}
-      # Database
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: db
-      DB_POSTGRESDB_PORT: 5432
-      DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME:-n8n}
-      DB_POSTGRESDB_USER: ${DB_USER}
-      DB_POSTGRESDB_PASSWORD: ${DB_PASSWORD}
-      # Settings
-      GENERIC_TIMEZONE: Europe/Berlin
-      N8N_METRICS: "true"
-    volumes:
-      - n8n-data:/home/node/.n8n
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - ai-dashboard-network
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678/healthz"]
-      <<: *healthcheck-defaults
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN}`)"
-      - "traefik.http.routers.n8n.entrypoints=websecure"
-      - "traefik.http.routers.n8n.tls=true"
-      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
-      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
-      - "traefik.http.routers.n8n.middlewares=security-headers@file"
-
-  # ──────────────────────────────────────────────────────────
-  # TELEGRAM BOT (Voice Assistant)
-  # ──────────────────────────────────────────────────────────
-  telegram-bot:
-    build:
-      context: ./telegram-bot
-      dockerfile: Dockerfile
-    container_name: ai-telegram-bot
-    <<: *restart-policy
-    environment:
-      <<: *common-env
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      BACKEND_URL: http://backend:8000
-      AI_SERVICE_URL: http://ai-service:8001
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
-    depends_on:
-      - backend
-      - redis
-      - ai-service
-    networks:
-      - ai-dashboard-network
-    logging: *default-logging
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - nova-network
-    restart: unless-stopped
-
-  # FastAPI Backend
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: nova-v3-backend
-    environment:
-      DATABASE_URL: postgresql://nova:${POSTGRES_PASSWORD:-nova_password}@db:5432/nova_v3
-      SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
-      DEBUG: ${DEBUG:-false}
-    # GPU reservations commented out for CPU-only run
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
-    # HIER: Erzwungener Startbefehl mit asyncio-Loop
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
-
-    # Allow unconfined syscalls (fixes seccomp-related build/runtime errors on Proxmox LXC)
-    security_opt:
-      - seccomp:unconfined
-      - no-new-privileges:true
-
-    cap_drop:
-      - ALL
-
-    depends_on:
-      - db
     volumes:
       - ./backend/app:/app/app
+    networks:
+      - nova-network
+    logging: *default-logging
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      <<: *healthcheck-defaults
     labels:
       - "traefik.enable=true"
+      # HTTP
       - "traefik.http.routers.backend.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`, `/health`)"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
@@ -372,11 +197,11 @@ services:
       - "traefik.http.routers.backend-secure.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`, `/health`)"
       - "traefik.http.routers.backend-secure.entrypoints=websecure"
       - "traefik.http.routers.backend-secure.tls.certresolver=letsencrypt"
-    networks:
-      - nova-network
-    restart: unless-stopped
+      - "traefik.http.routers.backend-secure.middlewares=security-headers@file,rate-limit@file,compress@file"
 
-  # React Frontend (build outside image to avoid esbuild/seccomp issues)
+  # ──────────────────────────────────────────────────────────
+  # FRONTEND BUILD (Node.js - Build-only Container)
+  # ──────────────────────────────────────────────────────────
   frontend-build:
     image: node:18-bullseye
     container_name: nova-v3-frontend-build
@@ -388,48 +213,82 @@ services:
       - frontend_dist:/app/dist
     security_opt:
       - seccomp=unconfined
-    command: >-
-      sh -c "npm install && npm run build"
+    command: sh -c "npm install && npm run build"
     networks:
       - nova-network
     restart: "no"
 
+  # ──────────────────────────────────────────────────────────
+  # FRONTEND (React + Nginx)
+  # ──────────────────────────────────────────────────────────
   frontend:
     image: nginx:alpine
     container_name: nova-v3-frontend
+    <<: *restart-policy
     depends_on:
       - backend
       - frontend-build
     volumes:
       - frontend_dist:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - nova-network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      <<: *healthcheck-defaults
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`) || Host(`192.168.2.77`)"
+      # HTTP
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`) || Host(`www.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.frontend.entrypoints=web"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       # HTTPS
-      - "traefik.http.routers.frontend-secure.rule=Host(`${DOMAIN:-localhost}`) || Host(`192.168.2.77`)"
+      - "traefik.http.routers.frontend-secure.rule=Host(`${DOMAIN:-localhost}`) || Host(`www.${DOMAIN:-localhost}`)"
       - "traefik.http.routers.frontend-secure.entrypoints=websecure"
       - "traefik.http.routers.frontend-secure.tls.certresolver=letsencrypt"
       # HTTP to HTTPS redirect
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.routers.frontend.middlewares=redirect-to-https"
-    networks:
-      - nova-network
-    restart: unless-stopped
+      - "traefik.http.routers.frontend-secure.middlewares=security-headers@file,compress@file"
 
-  # AI Service
+  # ──────────────────────────────────────────────────────────
+  # AI SERVICE (Python ML Service - Optional)
+  # ──────────────────────────────────────────────────────────
   ai-service:
     build:
       context: ./ai-service
-      dockerfile: Dockerfile.ai-service
+      dockerfile: Dockerfile
     container_name: nova-v3-ai-service
+    <<: *restart-policy
     environment:
-      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
-      - NVIDIA_DRIVER_CAPABILITIES=${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
-      # Wir fügen "/app/app" hinzu, damit er den inneren Ordner findet
-      - PYTHONPATH=/app:/app/app
-    # --- DIESEN BLOCK AUSKOMMENTIERT: keine GPU-Reservationen für jetzt (CPU-only) ---
+      <<: *common-env
+      MODEL_PATH: /models
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change_me_redis_password}@redis:6379/1
+      BACKEND_URL: http://backend:8000
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,utility}
+      PYTHONPATH: /app:/app/app
+    # Erzwungener Startbefehl mit asyncio-Loop
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
+    # Security hardening for Proxmox LXC
+    security_opt:
+      - seccomp:unconfined
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./models:/models:ro
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - nova-network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      <<: *healthcheck-defaults
+    # GPU Passthrough (auskommentiert für CPU-only)
     # deploy:
     #   resources:
     #     reservations:
@@ -437,27 +296,9 @@ services:
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
-
-    # HIER: Erzwungener Startbefehl mit asyncio-Loop
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --loop asyncio
-
-    # Allow unconfined syscalls (fixes seccomp-related build/runtime errors on Proxmox LXC)
-    security_opt:
-      - seccomp:unconfined
-      - no-new-privileges:true
-
-    cap_drop:
-      - ALL
-
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     labels:
       - "traefik.enable=true"
+      # HTTP
       - "traefik.http.routers.ai-service.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/ai`)"
       - "traefik.http.routers.ai-service.entrypoints=web"
       - "traefik.http.services.ai-service.loadbalancer.server.port=8000"
@@ -465,18 +306,83 @@ services:
       - "traefik.http.routers.ai-service-secure.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/ai`)"
       - "traefik.http.routers.ai-service-secure.entrypoints=websecure"
       - "traefik.http.routers.ai-service-secure.tls.certresolver=letsencrypt"
+
+  # ──────────────────────────────────────────────────────────
+  # N8N (Workflow Automation - Optional)
+  # ──────────────────────────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: nova-v3-n8n
+    <<: *restart-policy
+    profiles:
+      - full
+    environment:
+      <<: *common-env
+      # Authentication
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-changeme}
+      # URLs
+      N8N_HOST: n8n.${DOMAIN:-localhost}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: https://n8n.${DOMAIN:-localhost}
+      # Database
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME:-n8n}
+      DB_POSTGRESDB_USER: ${DB_USER:-nova}
+      DB_POSTGRESDB_PASSWORD: ${DB_PASSWORD:-nova_password}
+      # Settings
+      GENERIC_TIMEZONE: Europe/Berlin
+      N8N_METRICS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - nova-network
-    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      <<: *healthcheck-defaults
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      - "traefik.http.routers.n8n.middlewares=security-headers@file"
 
-volumes:
-  postgres_data:
-    driver: local
-  traefik_letsencrypt:
-    driver: local
-  frontend_dist:
-    driver: local
-
-networks:
-  nova-network:
-    driver: bridge
+  # ──────────────────────────────────────────────────────────
+  # TELEGRAM BOT (Voice Assistant - Optional)
+  # ──────────────────────────────────────────────────────────
+  telegram-bot:
+    build:
+      context: ./telegram-bot
+      dockerfile: Dockerfile
+    container_name: nova-v3-telegram-bot
+    <<: *restart-policy
+    profiles:
+      - full
+    environment:
+      <<: *common-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      BACKEND_URL: http://backend:8000
+      AI_SERVICE_URL: http://ai-service:8000
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change_me_redis_password}@redis:6379/2
+    depends_on:
+      - backend
+      - redis
+      - ai-service
+    networks:
+      - nova-network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

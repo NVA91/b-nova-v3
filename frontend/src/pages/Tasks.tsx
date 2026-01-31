@@ -70,10 +70,10 @@ export default function Tasks() {
                         task.status === 'completed'
                           ? 'bg-green-500/20 text-green-400'
                           : task.status === 'failed'
-                          ? 'bg-red-500/20 text-red-400'
-                          : task.status === 'running'
-                          ? 'bg-blue-500/20 text-blue-400'
-                          : 'bg-gray-500/20 text-gray-400'
+                            ? 'bg-red-500/20 text-red-400'
+                            : task.status === 'running'
+                              ? 'bg-blue-500/20 text-blue-400'
+                              : 'bg-gray-500/20 text-gray-400'
                       }`}
                     >
                       {task.status}

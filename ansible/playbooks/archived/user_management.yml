@@ -10,15 +10,15 @@
   vars:
     # Admin-Benutzer
     default_user: "admin_nova"
-    
+
     # SSH-Konfiguration
     ssh_key_path: "{{ lookup('env', 'HOME') }}/.ssh/id_ed25519.pub"
     ssh_key_type: "ed25519"
     ssh_port: 22
-    
+
     # Sudo-Konfiguration
     enable_passwordless_sudo: true
-    
+
     # Sicherheit
     disable_password_auth: true
     disable_root_login: true

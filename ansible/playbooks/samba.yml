@@ -1,0 +1,45 @@
+---
+# 📁 Samba Playbook
+# Installiert und konfiguriert Samba-Server
+
+- name: Configure Samba Server
+  hosts: samba_servers
+  become: yes
+
+  vars:
+    # Custom Samba shares
+    samba_shares:
+      - name: "nova-data"
+        path: "/data/nova"
+        comment: "NOVA v3 Data Share"
+        browseable: "yes"
+        writable: "yes"
+        guest_ok: "no"
+        valid_users: "nova,admin"
+        create_mask: "0664"
+        directory_mask: "0775"
+
+      - name: "backups"
+        path: "/data/backups"
+        comment: "NOVA v3 Backups"
+        browseable: "yes"
+        writable: "yes"
+        guest_ok: "no"
+        valid_users: "admin"
+        create_mask: "0660"
+        directory_mask: "0770"
+
+    # Samba users
+    samba_users:
+      - username: "nova"
+        password: "{{ samba_nova_password | default('changeme') }}"
+      - username: "admin"
+        password: "{{ samba_admin_password | default('changeme') }}"
+
+  roles:
+    - samba
+
+  post_tasks:
+    - name: Display Samba status
+      ansible.builtin.debug:
+        msg: "Samba server configured successfully. Access shares at \\\\{{ ansible_hostname }}\\"

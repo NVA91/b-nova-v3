@@ -1,0 +1,472 @@
+# Check Network Connectivity
+# Prüft Netzwerk-Konnektivität zu wichtigen Zielen
+
+- name: Check internet connectivity
+  ansible.builtin.uri:
+    url: https://www.google.com
+    method: GET
+    timeout: 10
+    status_code: 200
+  register: internet_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, network]
+
+- name: Display internet connectivity status
+  ansible.builtin.debug:
+    msg: "Internet connectivity: {{ 'OK' if internet_check is succeeded else 'FAILED' }}"
+  tags: [preflight, network]
+
+- name: Check DNS resolution
+  ansible.builtin.command:
+    cmd: nslookup google.com
+  register: dns_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, network]
+
+- name: Display DNS resolution status
+  ansible.builtin.debug:
+    msg: "DNS resolution: {{ 'OK' if dns_check.rc == 0 else 'FAILED' }}"
+  tags: [preflight, network]
+
+- name: Check connectivity to Proxmox host
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: 8006
+    timeout: 10
+  register: proxmox_connectivity
+  failed_when: false
+  when: "'proxmox' in group_names"
+  tags: [preflight, network]
+
+- name: Display Proxmox connectivity status
+  ansible.builtin.debug:
+    msg: "Proxmox connectivity: {{ 'OK' if proxmox_connectivity is succeeded else 'FAILED' }}"
+  when: "'proxmox' in group_names"
+  tags: [preflight, network]
+
+- name: Warn if internet connectivity is not available
+  ansible.builtin.debug:
+    msg: "WARNING: Internet connectivity check failed. Some features may not work."
+  when: internet_check is failed
+  tags: [preflight, network]
+
+# Check Proxmox Version
+# Erkennt und validiert die Proxmox VE Version
+
+- name: Get Proxmox version
+  ansible.builtin.shell:
+    cmd: pveversion | grep -oP 'pve-manager/\\K[0-9]+\\.[0-9]+'
+  register: proxmox_version_result
+  changed_when: false
+  failed_when: false
+  tags: [preflight, version]
+
+- name: Set Proxmox version fact
+  ansible.builtin.set_fact:
+    detected_proxmox_version: "{{ proxmox_version_result.stdout | default('unknown') }}"
+  tags: [preflight, version]
+
+- name: Display detected Proxmox version
+  ansible.builtin.debug:
+    msg: "Detected Proxmox VE version: {{ detected_proxmox_version }}"
+  tags: [preflight, version]
+
+- name: Check if Proxmox version meets requirements
+  ansible.builtin.assert:
+    that:
+      - proxmox_version_result.rc == 0
+      - detected_proxmox_version is version(proxmox_version_required, '>=')
+    fail_msg: |
+      Proxmox version check failed!
+      Required: {{ proxmox_version_required }}
+      Detected: {{ detected_proxmox_version }}
+    success_msg: "Proxmox version {{ detected_proxmox_version }} meets requirements (>= {{ proxmox_version_required }})"
+  when: proxmox_version_required is defined
+  tags: [preflight, version]
+
+- name: Check Proxmox API availability
+  ansible.builtin.uri:
+    url: "https://{{ ansible_host | default(inventory_hostname) }}:8006/api2/json/version"
+    method: GET
+    validate_certs: false
+    status_code: 200
+  register: proxmox_api_check
+  failed_when: false
+  changed_when: false
+  tags: [preflight, version, api]
+
+- name: Display Proxmox API status
+  ansible.builtin.debug:
+    msg: "Proxmox API is {{ 'available' if proxmox_api_check.status == 200 else 'unavailable' }}"
+  tags: [preflight, version, api]
+
+- name: Fail if Proxmox API is not available
+  ansible.builtin.fail:
+    msg: "Proxmox API is not reachable at https://{{ ansible_host | default(inventory_hostname) }}:8006"
+  when:
+    - proxmox_api_check.status is defined
+    - proxmox_api_check.status != 200
+    - strict_api_check | default(false) | bool
+  tags: [preflight, version, api]
+
+# Check Python Dependencies
+# Prüft ob alle notwendigen Python-Pakete installiert sind
+
+- name: Check Python version
+  ansible.builtin.command:
+    cmd: python3 --version
+  register: python_version
+  changed_when: false
+  delegate_to: localhost
+  tags: [preflight, python]
+
+- name: Display Python version
+  ansible.builtin.debug:
+    msg: "{{ python_version.stdout }}"
+  tags: [preflight, python]
+
+- name: Check if proxmoxer is installed (for Proxmox API)
+  ansible.builtin.command:
+    cmd: python3 -c "import proxmoxer"
+  register: proxmoxer_check
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, python]
+
+- name: Display proxmoxer status
+  ansible.builtin.debug:
+    msg: "proxmoxer library: {{ 'installed' if proxmoxer_check.rc == 0 else 'not installed' }}"
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, python]
+
+- name: Warn if proxmoxer is not installed
+  ansible.builtin.debug:
+    msg: "WARNING: proxmoxer library not found. Install with: pip install proxmoxer"
+  when:
+    - not controller_mode | default(false) | bool
+    - proxmoxer_check.rc != 0
+  tags: [preflight, python]
+
+- name: Check if requests is installed
+  ansible.builtin.command:
+    cmd: python3 -c "import requests"
+  register: requests_check
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  tags: [preflight, python]
+
+- name: Display requests status
+  ansible.builtin.debug:
+    msg: "requests library: {{ 'installed' if requests_check.rc == 0 else 'not installed' }}"
+  tags: [preflight, python]
+
+# Check SSH Keys
+# Prüft ob SSH-Keys vorhanden und korrekt konfiguriert sind
+
+- name: Check for SSH private key
+  ansible.builtin.stat:
+    path: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_ed25519') }}"
+  register: ssh_private_key
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Check for SSH public key
+  ansible.builtin.stat:
+    path: "{{ ansible_ssh_private_key_file | default('~/.ssh/id_ed25519') }}.pub"
+  register: ssh_public_key
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Display SSH key status
+  ansible.builtin.debug:
+    msg: |
+      SSH private key: {{ 'found' if ssh_private_key.stat.exists else 'not found' }}
+      SSH public key: {{ 'found' if ssh_public_key.stat.exists else 'not found' }}
+  tags: [preflight, ssh]
+
+- name: Check SSH private key permissions
+  ansible.builtin.assert:
+    that:
+      - ssh_private_key.stat.mode == '0600'
+    fail_msg: "SSH private key has insecure permissions! Should be 0600, is {{ ssh_private_key.stat.mode }}"
+    success_msg: "SSH private key has correct permissions (0600)"
+  when: ssh_private_key.stat.exists
+  delegate_to: localhost
+  tags: [preflight, ssh]
+
+- name: Test SSH connectivity to target hosts
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host | default(inventory_hostname) }}"
+    port: "{{ ansible_port | default(22) }}"
+    timeout: 10
+  register: ssh_connectivity
+  failed_when: false
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, ssh]
+
+- name: Display SSH connectivity status
+  ansible.builtin.debug:
+    msg: "SSH connectivity to {{ inventory_hostname }}: {{ 'OK' if ssh_connectivity is succeeded else 'FAILED' }}"
+  when: not controller_mode | default(false) | bool
+  tags: [preflight, ssh]
+
+- name: Fail if SSH keys are required but not found
+  ansible.builtin.fail:
+    msg: |
+      SSH keys are required but not found!
+      Please generate SSH keys with: ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+  when:
+    - require_ssh_key | default(false) | bool
+    - not ssh_private_key.stat.exists or not ssh_public_key.stat.exists
+  tags: [preflight, ssh]
+
+# Check Ansible Vault
+# Prüft ob Ansible Vault verfügbar und konfiguriert ist
+
+- name: Check if vault password file exists
+  ansible.builtin.stat:
+    path: "{{ vault_password_file | default('.vault_pass') }}"
+  register: vault_pass_file
+  delegate_to: localhost
+  tags: [preflight, vault]
+
+- name: Display vault password file status
+  ansible.builtin.debug:
+    msg: "Vault password file: {{ 'found' if vault_pass_file.stat.exists else 'not found' }}"
+  tags: [preflight, vault]
+
+- name: Check vault password file permissions
+  ansible.builtin.assert:
+    that:
+      - vault_pass_file.stat.mode == '0600'
+    fail_msg: "Vault password file has insecure permissions! Should be 0600, is {{ vault_pass_file.stat.mode }}"
+    success_msg: "Vault password file has correct permissions (0600)"
+  when: vault_pass_file.stat.exists
+  delegate_to: localhost
+  tags: [preflight, vault]
+
+- name: Try to decrypt a test vault variable
+  ansible.builtin.command:
+    cmd: ansible-vault view --vault-password-file="{{ vault_password_file | default('.vault_pass') }}" /dev/null
+  register: vault_test
+  failed_when: false
+  changed_when: false
+  delegate_to: localhost
+  when: vault_pass_file.stat.exists
+  tags: [preflight, vault]
+
+- name: Fail if vault is required but not configured
+  ansible.builtin.fail:
+    msg: |
+      Ansible Vault is required but not properly configured!
+      Please create a vault password file at: {{ vault_password_file | default('.vault_pass') }}
+      And ensure it has correct permissions: chmod 600 {{ vault_password_file | default('.vault_pass') }}
+  when:
+    - require_vault | default(false) | bool
+    - not vault_pass_file.stat.exists
+  tags: [preflight, vault]
+
+# Preflight Checks - Hardware-Validierung vor Rollout
+
+- name: "Pre-Flight: Ansible Facts sammeln"
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+      - devices
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Anzahl der NVMe-SSDs prüfen"
+  ansible.builtin.shell:
+    cmd: "lsblk -d -o NAME,TYPE | grep nvme | wc -l"
+  register: nvme_count
+  changed_when: false
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - 3 NVMe-SSDs erforderlich"
+  ansible.builtin.assert:
+    that:
+      - nvme_count.stdout | int == 3
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: Falsche Anzahl NVMe-SSDs!
+
+      Erwartet: 3 SSDs
+      Gefunden: {{ nvme_count.stdout }}
+
+      Erwartete Konfiguration:
+        - /dev/nvme0n1: 2TB WD Black (VM Storage)
+        - /dev/nvme1n1: 2TB Storage SSD (General Storage)
+        - /dev/nvme2n1: 1TB System SSD (Proxmox/Boot)
+
+      Bitte Hardware prüfen und erneut versuchen!
+    success_msg: "✅ Storage-Validierung erfolgreich: 3 NVMe-SSDs gefunden"
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: NVMe-Größen ermitteln"
+  ansible.builtin.shell:
+    cmd: "lsblk -d -o NAME,SIZE | grep nvme"
+  register: nvme_sizes
+  changed_when: false
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: NVMe-Größen anzeigen"
+  ansible.builtin.debug:
+    msg: "{{ nvme_sizes.stdout_lines }}"
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - Storage-Größen prüfen"
+  ansible.builtin.assert:
+    that:
+      - nvme_sizes.stdout is search('2T') or nvme_sizes.stdout is search('1.8T')
+      - nvme_sizes.stdout is search('1T') or nvme_sizes.stdout is search('931G')
+    fail_msg: |
+      ⚠️ WARNUNG: Storage-Größen stimmen nicht mit erwarteter Konfiguration überein!
+
+      Gefundene SSDs:
+      {{ nvme_sizes.stdout_lines | join('\n') }}
+
+      Bitte manuell prüfen, ob die Zuordnung korrekt ist:
+        - 2x 2TB SSDs (VM + Storage)
+        - 1x 1TB SSD (System)
+    success_msg: "✅ Storage-Größen validiert"
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: eGPU-Präsenz prüfen"
+  ansible.builtin.shell:
+    cmd: "lspci | grep -i nvidia"
+  register: egpu_check
+  failed_when: false
+  changed_when: false
+  when: nova_hardware.gpu.egpu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - eGPU erforderlich"
+  ansible.builtin.assert:
+    that:
+      - egpu_check.rc == 0
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: eGPU nicht gefunden!
+
+      Erwartete Hardware: NVIDIA RTX 5060 Ti (via OCuLink)
+
+      Mögliche Ursachen:
+        - OCuLink-Kabel nicht angeschlossen
+        - eGPU-Dock ausgeschaltet
+        - BIOS-Einstellungen falsch (PCIe-Hotplug deaktiviert)
+
+      Bitte Hardware prüfen und erneut versuchen!
+    success_msg: "✅ eGPU gefunden: {{ egpu_check.stdout }}"
+  when: nova_hardware.gpu.egpu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: NPU-Präsenz prüfen"
+  ansible.builtin.shell:
+    cmd: "lspci | grep -i 1022:1502"
+  register: npu_check
+  failed_when: false
+  changed_when: false
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - NPU erforderlich"
+  ansible.builtin.assert:
+    that:
+      - npu_check.rc == 0
+    fail_msg: |
+      ⚠️ WARNUNG: NPU nicht gefunden!
+
+      Erwartete Hardware: AMD XDNA NPU (PCI-ID 1022:1502)
+
+      Mögliche Ursachen:
+        - BIOS-Einstellung deaktiviert NPU
+        - Kernel zu alt (< 6.8)
+        - NPU-Treiber nicht geladen
+
+      NPU ist optional, Rollout wird fortgesetzt.
+    success_msg: "✅ NPU gefunden: {{ npu_check.stdout }}"
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Kernel-Version prüfen"
+  ansible.builtin.shell:
+    cmd: "uname -r"
+  register: kernel_version
+  changed_when: false
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Validierung - Kernel-Version für NPU"
+  ansible.builtin.assert:
+    that:
+      - kernel_version.stdout is version('6.8', '>=')
+    fail_msg: |
+      ⚠️ WARNUNG: Kernel-Version zu alt für NPU-Support!
+
+      Aktuelle Version: {{ kernel_version.stdout }}
+      Erforderlich: >= 6.8
+
+      NPU wird nicht verfügbar sein. Bitte Kernel aktualisieren.
+    success_msg: "✅ Kernel-Version ausreichend: {{ kernel_version.stdout }}"
+  when: nova_hardware.npu.enabled | default(false)
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: RAM-Größe prüfen"
+  ansible.builtin.assert:
+    that:
+      - ansible_memtotal_mb >= 30720  # 30 GB minimum
+    fail_msg: |
+      ❌ KRITISCHER FEHLER: Nicht genug RAM!
+
+      Gefunden: {{ ansible_memtotal_mb }} MB
+      Erforderlich: >= 32 GB (30720 MB)
+
+      ZFS ARC und Docker benötigen mindestens 32 GB RAM!
+    success_msg: "✅ RAM ausreichend: {{ ansible_memtotal_mb }} MB"
+  tags:
+    - always
+    - preflight
+
+- name: "Pre-Flight: Zusammenfassung"
+  ansible.builtin.debug:
+    msg:
+      - "========================================="
+      - "✅ PRE-FLIGHT-CHECKS ERFOLGREICH"
+      - "========================================="
+      - "Storage: 3 NVMe-SSDs gefunden"
+      - "RAM: {{ ansible_memtotal_mb }} MB"
+      - "Kernel: {{ kernel_version.stdout }}"
+      - "eGPU: {{ 'Gefunden' if egpu_check.rc == 0 else 'Nicht gefunden' }}"
+      - "NPU: {{ 'Gefunden' if npu_check.rc == 0 else 'Nicht gefunden' }}"
+      - "========================================="
+      - "Rollout kann fortgesetzt werden."
+      - "========================================="
+  tags:
+    - always
+    - preflight

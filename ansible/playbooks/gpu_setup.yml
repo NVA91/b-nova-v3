@@ -1,0 +1,49 @@
+# NOVA v3 - GPU Setup Playbook
+# Konfiguriert eGPU-Passthrough und NPU-Support
+
+- name: "NOVA v3 - GPU Setup"
+  hosts: proxmox-server
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: "Pre-Check: Prüfe ob eGPU vorhanden"
+      ansible.builtin.command:
+        cmd: lspci | grep -i nvidia
+      register: egpu_check
+      failed_when: false
+      changed_when: false
+      tags:
+        - always
+
+    - name: "Pre-Check: eGPU Status"
+      ansible.builtin.debug:
+        msg: "{{ 'eGPU gefunden' if egpu_check.rc == 0 else 'eGPU nicht gefunden - bitte anschließen' }}"
+      tags:
+        - always
+
+  roles:
+    - role: gpu_hookscript
+      when: has_egpu | default(false)
+      tags:
+        - gpu_setup
+
+  post_tasks:
+    - name: "Post-Check: IOMMU-Gruppen anzeigen"
+      ansible.builtin.shell:
+        cmd: |
+          for d in /sys/kernel/iommu_groups/*/devices/*; do
+            n=${d#*/iommu_groups/*}; n=${n%%/*}
+            printf 'IOMMU Group %s ' "$n"
+            lspci -nns "${d##*/}"
+          done
+      register: iommu_groups
+      changed_when: false
+      tags:
+        - always
+
+    - name: "Post-Check: IOMMU-Gruppen ausgeben"
+      ansible.builtin.debug:
+        var: iommu_groups.stdout_lines
+      tags:
+        - always
